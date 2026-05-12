@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
-const branchSchema = new mongoose.Schema({
-  branchId: {
+const salesSchema = new mongoose.Schema({
+  salesId: {
     type: String,
     required: true,
     unique: true,
@@ -14,17 +14,9 @@ const branchSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  manager: {
-    type: String,
-    required: true,
-  },
   contact: {
     type: String,
     required: true,
-  },
-  gstin: {
-    type: String,
-    default: 'N/A',
   },
   status: {
     type: String,
@@ -48,4 +40,4 @@ const branchSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-module.exports = mongoose.model('Branch', branchSchema);
+module.exports = mongoose.model('SalesRep', salesSchema);

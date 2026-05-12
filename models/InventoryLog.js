@@ -4,7 +4,15 @@ const inventoryLogSchema = new mongoose.Schema({
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
-    required: true,
+    // Optional: if null, it's admin/central inventory
+  },
+  salesRep: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SalesRep',
+  },
+  distributor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Distributor',
   },
   product: {
     type: mongoose.Schema.Types.ObjectId,

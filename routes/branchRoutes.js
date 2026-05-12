@@ -9,13 +9,18 @@ const {
   toggleBranchStatus,
 } = require('../controllers/branchController');
 const { protect } = require('../middlewares/authMiddleware');
+const asyncHandler = require('../middlewares/asyncHandler');
 
-router.route('/').get(protect, getBranches).post(protect, createBranch);
+router.route('/')
+  .get(protect, asyncHandler(getBranches))
+  .post(protect, asyncHandler(createBranch));
+
 router
   .route('/:id')
-  .get(protect, getBranchById)
-  .put(protect, updateBranch)
-  .delete(protect, deleteBranch);
-router.patch('/:id/status', protect, toggleBranchStatus);
+  .get(protect, asyncHandler(getBranchById))
+  .put(protect, asyncHandler(updateBranch))
+  .delete(protect, asyncHandler(deleteBranch));
+
+router.patch('/:id/status', protect, asyncHandler(toggleBranchStatus));
 
 module.exports = router;

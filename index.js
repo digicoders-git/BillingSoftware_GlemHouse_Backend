@@ -24,13 +24,17 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
-app.use('/api/branches', require('./routes/branchRoutes'));
+app.use('/api/Branches', require('./routes/branchRoutes'));
 app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/dispatches', require('./routes/dispatchRoutes'));
 app.use('/api/branch-inventory', require('./routes/branchInventoryRoutes'));
 app.use('/api/branch-sales', require('./routes/branchSaleRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/inventory', require('./routes/inventoryRoutes'));
+app.use('/api/sales', require('./routes/salesRoutes'));
+app.use('/api/distributors', require('./routes/distributorRoutes'));
+app.use('/api/distributor-inventory', require('./routes/distributorInventoryRoutes'));
 
 // Static folder
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

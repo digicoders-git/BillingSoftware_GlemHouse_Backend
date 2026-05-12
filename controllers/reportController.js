@@ -1,4 +1,5 @@
 const Dispatch = require('../models/Dispatch');
+const Sale = require('../models/Sale');
 const moment = require('moment');
 
 // @desc    Get daily report
@@ -11,10 +12,16 @@ const getDailyReport = async (req, res) => {
 
     const dispatches = await Dispatch.find({
       date: { $gte: today.toDate(), $lt: tomorrow.toDate() }
-    }).populate('branch', 'name');
+    }).populate('receiverBranch', 'name');
 
-    const totalRevenue = dispatches.reduce((sum, d) => sum + d.totalValue, 0);
-    const totalItems = dispatches.reduce((sum, d) => sum + d.totalItems, 0);
+    const sales = await Sale.find({
+      date: { $gte: today.toDate(), $lt: tomorrow.toDate() }
+    });
+
+    const dispatchRevenue = dispatches.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
+    const salesRevenue = sales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    const totalRevenue = dispatchRevenue + salesRevenue;
+
     const pending = dispatches.filter(d => d.status === 'Dispatched').length;
     const received = dispatches.filter(d => d.status === 'Received').length;
 
@@ -27,7 +34,7 @@ const getDailyReport = async (req, res) => {
       },
       log: dispatches.map(d => ({
         time: moment(d.date).format('hh:mm A'),
-        branch: d.branch?.name || 'N/A',
+        branch: d.receiverBranch?.name || d.receiverSalesRep?.name || d.receiverDistributor?.name || 'N/A',
         products: d.items.map(i => `${i.name} x ${i.qty}`).join(', '),
         qty: d.totalItems,
         status: d.status
@@ -50,10 +57,17 @@ const getMonthlyReport = async (req, res) => {
       date: { $gte: startOfMonth.toDate(), $lte: endOfMonth.toDate() }
     });
 
-    const totalRevenue = dispatches.reduce((sum, d) => sum + d.totalValue, 0);
-    const avgPerDay = (dispatches.length / moment().date()).toFixed(1);
+    const sales = await Sale.find({
+      date: { $gte: startOfMonth.toDate(), $lte: endOfMonth.toDate() }
+    });
 
-    // Weekly breakdown for chart
+    const dispatchRevenue = dispatches.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
+    const salesRevenue = sales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    const totalRevenue = dispatchRevenue + salesRevenue;
+
+    const avgPerDay = (totalRevenue / moment().date()).toFixed(2);
+
+    // Weekly breakdown for chart (Units)
     const weeklyData = [
       { week: 'Week 1', dispatches: 0 },
       { week: 'Week 2', dispatches: 0 },
@@ -74,7 +88,7 @@ const getMonthlyReport = async (req, res) => {
         monthlyDispatches: dispatches.length,
         monthlyRevenue: totalRevenue,
         avgPerDay: avgPerDay,
-        fulfillmentRate: '98%' // Dummy
+        fulfillmentRate: dispatches.length > 0 ? ((dispatches.filter(d => d.status === 'Received').length / dispatches.length) * 100).toFixed(1) + '%' : '100%'
       },
       chartData: weeklyData,
       monthName: moment().format('MMMM YYYY')
@@ -96,7 +110,13 @@ const getYearlyReport = async (req, res) => {
       date: { $gte: startOfYear.toDate(), $lte: endOfYear.toDate() }
     });
 
-    const totalRevenue = dispatches.reduce((sum, d) => sum + d.totalValue, 0);
+    const sales = await Sale.find({
+      date: { $gte: startOfYear.toDate(), $lte: endOfYear.toDate() }
+    });
+
+    const dispatchRevenue = dispatches.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
+    const salesRevenue = sales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    const totalRevenue = dispatchRevenue + salesRevenue;
 
     // Monthly breakdown for chart
     const monthlyData = moment.monthsShort().map(month => ({
@@ -106,15 +126,42 @@ const getYearlyReport = async (req, res) => {
 
     dispatches.forEach(d => {
       const monthIdx = moment(d.date).month();
-      monthlyData[monthIdx].value += d.totalValue;
+      monthlyData[monthIdx].value += (d.totalAmount || 0);
     });
+
+    sales.forEach(s => {
+       const monthIdx = moment(s.date).month();
+       monthlyData[monthIdx].value += (s.totalAmount || 0);
+    });
+
+    // Growth Rate calculation
+    const lastYearStart = moment(startOfYear).subtract(1, 'year');
+    const lastYearEnd = moment(endOfYear).subtract(1, 'year');
+
+    const lastYearDispatches = await Dispatch.find({
+      date: { $gte: lastYearStart.toDate(), $lte: lastYearEnd.toDate() }
+    });
+    const lastYearSales = await Sale.find({
+      date: { $gte: lastYearStart.toDate(), $lte: lastYearEnd.toDate() }
+    });
+
+    const lastYearRevenue = lastYearDispatches.reduce((sum, d) => sum + (d.totalAmount || 0), 0) + 
+                          lastYearSales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+
+    let growthRate = '0%';
+    if (lastYearRevenue > 0) {
+      const growth = ((totalRevenue - lastYearRevenue) / lastYearRevenue) * 100;
+      growthRate = (growth > 0 ? '+' : '') + growth.toFixed(1) + '%';
+    } else if (totalRevenue > 0) {
+      growthRate = '+100%';
+    }
 
     res.json({
       stats: {
         yearlyDispatches: dispatches.length,
         yearlyRevenue: totalRevenue,
-        growthRate: '+15%',
-        topCategory: 'Electronics'
+        growthRate: growthRate,
+        topCategory: 'General'
       },
       chartData: monthlyData,
       year: moment().format('YYYY')

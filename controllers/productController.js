@@ -36,37 +36,45 @@ const createProduct = async (req, res) => {
   const Branch = require('../models/Branch');
   const BranchInventory = require('../models/BranchInventory');
 
-  const productExists = await Product.findOne({ sku });
+  try {
+    const productExists = await Product.findOne({ sku });
 
-  if (productExists) {
-    return res.status(400).json({ message: 'Product with this SKU already exists' });
-  }
-
-  const product = await Product.create({
-    name,
-    sku,
-    price,
-    stock,
-    category,
-    description,
-    image,
-    minLevel: Number(minLevel) || 5,
-  });
-
-  // If the user is a branch manager, link this product to their branch inventory
-  if (req.user && req.user.role === 'branch') {
-    const branch = await Branch.findOne({ user: req.user._id });
-    if (branch) {
-      await BranchInventory.create({
-        branch: branch._id,
-        product: product._id,
-        currentStock: stock || 0,
-        minStockLevel: req.body.minLevel || 5
-      });
+    if (productExists) {
+      return res.status(400).json({ message: 'Product with this SKU already exists' });
     }
-  }
 
-  res.status(201).json(product);
+    // Convert to numbers to avoid string issues
+    const numericStock = Number(stock) || 0;
+    const numericPrice = Number(price) || 0;
+    const numericMinLevel = Number(minLevel) || 5;
+
+    const product = await Product.create({
+      name,
+      sku,
+      price: numericPrice,
+      stock: req.user.role === 'admin' ? numericStock : 0, // Branch products don't go to Main Warehouse
+      category,
+      description,
+      image,
+      minLevel: numericMinLevel,
+    });
+
+    // If the user is a branch manager, link this product to their branch inventory
+    if (req.user && req.user.role === 'branch') {
+      const branch = await Branch.findOne({ user: req.user._id });
+      if (branch) {
+        await BranchInventory.create({
+          branch: branch._id,
+          product: product._id,
+          currentStock: numericStock, // Initial stock for the branch
+        });
+      }
+    }
+
+    res.status(201).json(product);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // @desc    Update a product

@@ -1,21 +1,43 @@
 const BranchInventory = require('../models/BranchInventory');
+const SalesRepInventory = require('../models/SalesRepInventory');
 const Branch = require('../models/Branch');
+const SalesRep = require('../models/SalesRep');
 const Product = require('../models/Product');
 const InventoryLog = require('../models/InventoryLog');
 
-// @desc    Get inventory for current branch
+// @desc    Get inventory for current branch or SalesRep
 // @route   GET /api/branch-inventory
-// @access  Private/Branch
+// @access  Private (Branch or SalesRep)
 const getBranchInventory = async (req, res) => {
   try {
-    // Find branch associated with the user
-    const branch = await Branch.findOne({ user: req.user._id });
-    if (!branch) {
-      return res.status(404).json({ message: 'Branch not found for this user' });
-    }
+    let inventory = [];
+    let name = '';
 
-    const inventory = await BranchInventory.find({ branch: branch._id })
-      .populate('product', 'name category price sku image minLevel');
+    if (req.user.role === 'branch' || (req.user.role === 'admin' && req.query.branchId)) {
+      const branchId = req.user.role === 'branch' 
+        ? (await Branch.findOne({ user: req.user._id }))?._id 
+        : req.query.branchId;
+        
+      if (!branchId) return res.status(404).json({ message: 'Branch not found' });
+      
+      const branch = await Branch.findById(branchId);
+      name = branch?.name || 'Branch';
+      inventory = await BranchInventory.find({ branch: branchId })
+        .populate('product', 'name category price sku image minLevel');
+    } else if (req.user.role === 'sales' || (req.user.role === 'admin' && req.query.salesRepId)) {
+      const salesRepId = req.user.role === 'sales' 
+        ? (await SalesRep.findOne({ user: req.user._id }))?._id 
+        : req.query.salesRepId;
+        
+      if (!salesRepId) return res.status(404).json({ message: 'Sales Rep not found' });
+      
+      const salesRep = await SalesRep.findById(salesRepId);
+      name = salesRep?.name || 'Sales Rep';
+      inventory = await SalesRepInventory.find({ salesRep: salesRepId })
+        .populate('product', 'name category price sku image minLevel');
+    } else {
+      return res.status(403).json({ message: 'Unauthorized role or missing parameters' });
+    }
 
     // Aggregate stats
     const totalItems = inventory.reduce((sum, item) => sum + item.currentStock, 0);
@@ -41,7 +63,7 @@ const getBranchInventory = async (req, res) => {
         lowStockCount,
         outOfStockCount
       },
-      branchName: branch.name
+      name
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -54,7 +76,13 @@ const getBranchInventory = async (req, res) => {
 const adjustStock = async (req, res) => {
   try {
     const { action, quantity } = req.body;
-    const inventoryItem = await BranchInventory.findById(req.params.id);
+    let inventoryItem;
+    
+    if (req.user.role === 'branch') {
+        inventoryItem = await BranchInventory.findById(req.params.id);
+    } else if (req.user.role === 'sales') {
+        inventoryItem = await SalesRepInventory.findById(req.params.id);
+    }
 
     if (!inventoryItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
@@ -73,7 +101,7 @@ const adjustStock = async (req, res) => {
 
     // Create Log
     await InventoryLog.create({
-      branch: inventoryItem.branch,
+      branch: inventoryItem.branch || null,
       product: inventoryItem.product,
       type: action === 'add' ? 'Stock In' : 'Stock Out',
       quantity: Number(quantity),
@@ -87,15 +115,21 @@ const adjustStock = async (req, res) => {
   }
 };
 
-// @desc    Get inventory logs for current branch
+// @desc    Get inventory logs
 // @route   GET /api/branch-inventory/logs
-// @access  Private/Branch
+// @access  Private
 const getInventoryLogs = async (req, res) => {
   try {
-    const branch = await Branch.findOne({ user: req.user._id });
-    if (!branch) return res.status(404).json({ message: 'Branch not found' });
+    let query = {};
+    if (req.user.role === 'branch') {
+        const branch = await Branch.findOne({ user: req.user._id });
+        query = { branch: branch._id };
+    } else if (req.user.role === 'sales') {
+        // Handle sales rep logs if needed, for now filtering by adjustedBy
+        query = { adjustedBy: req.user._id };
+    }
 
-    const logs = await InventoryLog.find({ branch: branch._id })
+    const logs = await InventoryLog.find(query)
       .populate('product', 'name')
       .populate('adjustedBy', 'name')
       .sort({ createdAt: -1 });
@@ -106,21 +140,21 @@ const getInventoryLogs = async (req, res) => {
   }
 };
 
-// @desc    Delete branch inventory item
+// @desc    Delete inventory item
 // @route   DELETE /api/branch-inventory/:id
-// @access  Private/Branch
+// @access  Private
 const deleteBranchInventory = async (req, res) => {
   try {
-    const inventoryItem = await BranchInventory.findById(req.params.id);
-    if (!inventoryItem) return res.status(404).json({ message: 'Item not found' });
-
-    // Ensure it belongs to the branch
-    const branch = await Branch.findOne({ user: req.user._id });
-    if (inventoryItem.branch.toString() !== branch._id.toString()) {
-      return res.status(403).json({ message: 'Unauthorized' });
+    let inventoryItem;
+    if (req.user.role === 'branch') {
+        inventoryItem = await BranchInventory.findById(req.params.id);
+    } else if (req.user.role === 'sales') {
+        inventoryItem = await SalesRepInventory.findById(req.params.id);
     }
 
-    await BranchInventory.findByIdAndDelete(req.params.id);
+    if (!inventoryItem) return res.status(404).json({ message: 'Item not found' });
+
+    await inventoryItem.constructor.findByIdAndDelete(req.params.id);
     res.json({ message: 'Item removed from inventory' });
   } catch (error) {
     res.status(500).json({ message: error.message });

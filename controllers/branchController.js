@@ -2,8 +2,8 @@ const Branch = require('../models/Branch');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 
-// @desc    Get all branches
-// @route   GET /api/branches
+// @desc    Get all Branches
+// @route   GET /api/Branches
 // @access  Private/Admin
 const getBranches = async (req, res) => {
   const pageSize = 10;
@@ -24,16 +24,16 @@ const getBranches = async (req, res) => {
     : {};
 
   const count = await Branch.countDocuments({ ...keyword, ...statusFilter });
-  const branches = await Branch.find({ ...keyword, ...statusFilter })
+  const Branches = await Branch.find({ ...keyword, ...statusFilter })
     .limit(pageSize)
     .skip(pageSize * (page - 1))
     .sort({ createdAt: -1 });
 
-  res.json({ branches, page, pages: Math.ceil(count / pageSize), total: count });
+  res.json({ Branches, page, pages: Math.ceil(count / pageSize), total: count });
 };
 
 // @desc    Get single branch
-// @route   GET /api/branches/:id
+// @route   GET /api/Branches/:id
 // @access  Private
 const getBranchById = async (req, res) => {
   const branch = await Branch.findById(req.params.id);
@@ -47,7 +47,7 @@ const getBranchById = async (req, res) => {
 };
 
 // @desc    Create a branch
-// @route   POST /api/branches
+// @route   POST /api/Branches
 // @access  Private/Admin
 const createBranch = async (req, res) => {
   const { branchId, name, location, manager, contact, email, password } = req.body;
@@ -90,7 +90,7 @@ const createBranch = async (req, res) => {
 };
 
 // @desc    Update a branch
-// @route   PUT /api/branches/:id
+// @route   PUT /api/Branches/:id
 // @access  Private/Admin
 const updateBranch = async (req, res) => {
   const branch = await Branch.findById(req.params.id);
@@ -127,7 +127,7 @@ const updateBranch = async (req, res) => {
 };
 
 // @desc    Delete a branch
-// @route   DELETE /api/branches/:id
+// @route   DELETE /api/Branches/:id
 // @access  Private/Admin
 const deleteBranch = async (req, res) => {
   const branch = await Branch.findById(req.params.id);
@@ -144,7 +144,7 @@ const deleteBranch = async (req, res) => {
 };
 
 // @desc    Toggle branch status
-// @route   PATCH /api/branches/:id/status
+// @route   PATCH /api/Branches/:id/status
 // @access  Private/Admin
 const toggleBranchStatus = async (req, res) => {
   const branch = await Branch.findById(req.params.id);

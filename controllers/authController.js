@@ -9,16 +9,14 @@ const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
 
   if (!name || !email || !password) {
-    res.status(400);
-    throw new Error('Please add all fields');
+    return res.status(400).json({ message: 'Please add all fields' });
   }
 
   // Check if user exists
   const userExists = await User.findOne({ email });
 
   if (userExists) {
-    res.status(400);
-    throw new Error('User already exists');
+    return res.status(400).json({ message: 'User already exists' });
   }
 
   // Hash password
@@ -42,8 +40,7 @@ const registerUser = async (req, res) => {
       token: generateToken(user._id),
     });
   } else {
-    res.status(400);
-    throw new Error('Invalid user data');
+    return res.status(400).json({ message: 'Invalid user data' });
   }
 };
 
@@ -59,12 +56,13 @@ const loginUser = async (req, res) => {
   
   if (!user) {
     console.log('User not found in DB');
-  } else {
-    const isMatch = await bcrypt.compare(password, user.password);
-    console.log('Password match status:', isMatch);
+    return res.status(401).json({ message: 'Invalid credentials' });
   }
 
-  if (user && (await bcrypt.compare(password, user.password))) {
+  const isMatch = await bcrypt.compare(password, user.password);
+  console.log('Password match status:', isMatch);
+
+  if (isMatch) {
     res.json({
       _id: user.id,
       name: user.name,
@@ -73,8 +71,7 @@ const loginUser = async (req, res) => {
       token: generateToken(user._id),
     });
   } else {
-    res.status(401);
-    throw new Error('Invalid credentials');
+    return res.status(401).json({ message: 'Invalid credentials' });
   }
 };
 

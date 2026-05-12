@@ -21,8 +21,7 @@ const getUserProfile = async (req, res) => {
       profilePic: user.profilePic,
     });
   } else {
-    res.status(404);
-    throw new Error('User not found');
+    return res.status(404).json({ message: 'User not found' });
   }
 };
 
@@ -62,8 +61,7 @@ const updateUserProfile = async (req, res) => {
       profilePic: updatedUser.profilePic,
     });
   } else {
-    res.status(404);
-    throw new Error('User not found');
+    return res.status(404).json({ message: 'User not found' });
   }
 };
 
@@ -74,8 +72,7 @@ const changePassword = async (req, res) => {
   const { oldPassword, newPassword } = req.body;
   
   if (!oldPassword || !newPassword) {
-    res.status(400);
-    throw new Error('Please provide both old and new passwords');
+    return res.status(400).json({ message: 'Please provide both old and new passwords' });
   }
 
   const user = await User.findById(req.user._id);
@@ -86,8 +83,7 @@ const changePassword = async (req, res) => {
     await user.save();
     res.json({ message: 'Password changed successfully' });
   } else {
-    res.status(401);
-    throw new Error('Invalid old password');
+    return res.status(401).json({ message: 'Invalid old password' });
   }
 };
 

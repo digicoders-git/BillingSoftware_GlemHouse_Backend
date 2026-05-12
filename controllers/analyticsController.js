@@ -3,13 +3,13 @@ const Product = require('../models/Product');
 const Branch = require('../models/Branch');
 const BranchInventory = require('../models/BranchInventory');
 
-// @desc    Get product allocation data for branches
+// @desc    Get product allocation data for Branches
 // @route   GET /api/analytics/allocation
 // @access  Private
 const getAllocationData = async (req, res) => {
   try {
     // Aggregate stock by branch
-    const branches = await Branch.find({});
+    const Branches = await Branch.find({});
     const products = await Product.find({});
     
     // Get all inventory records
@@ -17,7 +17,7 @@ const getAllocationData = async (req, res) => {
 
     // Prepare data for the table
     // For simplicity, let's group by branch
-    const branchAllocation = await Promise.all(branches.map(async (branch) => {
+    const branchAllocation = await Promise.all(Branches.map(async (branch) => {
       const branchStock = await BranchInventory.find({ branch: branch._id });
       const totalAllocated = branchStock.reduce((sum, item) => sum + item.currentStock, 0);
       

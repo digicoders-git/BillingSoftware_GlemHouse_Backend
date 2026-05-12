@@ -1,17 +1,41 @@
 const Sale = require('../models/Sale');
 const Branch = require('../models/Branch');
+const SalesRep = require('../models/SalesRep');
 const BranchInventory = require('../models/BranchInventory');
+const SalesRepInventory = require('../models/SalesRepInventory');
+const Distributor = require('../models/Distributor');
+const DistributorInventory = require('../models/DistributorInventory');
+const InventoryLog = require('../models/InventoryLog');
 const moment = require('moment');
 
-// @desc    Get sales history for current branch
+// @desc    Get sales history for current branch or SalesRep
 // @route   GET /api/branch-sales
-// @access  Private/Branch
+// @access  Private
 const getBranchSales = async (req, res) => {
   try {
-    const branch = await Branch.findOne({ user: req.user._id });
-    if (!branch) return res.status(404).json({ message: 'Branch not found' });
+    let query = {};
+    if (req.user.role === 'branch') {
+      const branch = await Branch.findOne({ user: req.user._id });
+      if (!branch) return res.status(404).json({ message: 'Branch not found' });
+      query = { branch: branch._id };
+    } else if (req.user.role === 'sales') {
+      const salesRep = await SalesRep.findOne({ user: req.user._id });
+      if (!salesRep) return res.status(404).json({ message: 'Sales Rep not found' });
+      query = { salesRep: salesRep._id };
+    } else if (req.user.role === 'distributor') {
+      const distributor = await Distributor.findOne({ user: req.user._id });
+      if (!distributor) return res.status(404).json({ message: 'Distributor not found' });
+      query = { distributor: distributor._id };
+    } else {
+        // Admin sees all
+        query = {};
+    }
 
-    const sales = await Sale.find({ branch: branch._id }).sort({ createdAt: -1 });
+    const sales = await Sale.find(query)
+      .populate('branch', 'name')
+      .populate('salesRep', 'name')
+      .populate('distributor', 'name')
+      .sort({ createdAt: -1 });
 
     const totalSold = sales.reduce((sum, s) => sum + s.totalQty, 0);
     const revenue = sales.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -35,7 +59,6 @@ const getBranchSales = async (req, res) => {
           };
         }
         
-        // Simple growth logic: Compare sales in last 7 days vs previous 7 days
         const isLast7Days = moment(s.date).isAfter(moment().subtract(7, 'days'));
         const isPrev7Days = moment(s.date).isBetween(moment().subtract(14, 'days'), moment().subtract(7, 'days'));
         
@@ -49,21 +72,18 @@ const getBranchSales = async (req, res) => {
     });
 
     const productWise = Object.values(productMap).map(p => {
-      // Calculate growth percentage
       if (p.lastWeekSales > 0) {
         p.growth = Math.round(((p.sales - p.lastWeekSales) / p.lastWeekSales) * 100);
       } else {
-        p.growth = p.sales > 0 ? 100 : 0; // 100% growth if it's new
+        p.growth = p.sales > 0 ? 100 : 0;
       }
-
       if (p.growth > 10) p.status = 'Increasing';
       else if (p.growth < -10) p.status = 'Decreasing';
       else p.status = 'Stable';
-      
       return p;
     });
 
-    // Calculate weekly trend (Last 7 days)
+    // Calculate weekly trend
     const weeklyTrend = [];
     for (let i = 6; i >= 0; i--) {
       const date = moment().subtract(i, 'days');
@@ -82,12 +102,21 @@ const getBranchSales = async (req, res) => {
         _id: s._id,
         invoiceId: s.invoiceId,
         customerName: s.customerName,
+        customerPhone: s.customerPhone,
         products: s.items.map(i => i.name).join(', '),
         items: s.items,
+        billingType: s.billingType,
+        gstRate: s.gstRate,
+        taxableAmount: s.taxableAmount,
+        gstAmount: s.gstAmount,
+        discount: s.discount,
         totalQty: s.totalQty,
         totalAmount: s.totalAmount,
+        createdAt: s.createdAt,
         time: moment(s.date).format('hh:mm A'),
-        date: moment(s.date).format('YYYY-MM-DD')
+        date: moment(s.date).format('YYYY-MM-DD'),
+        sellerType: s.sellerType,
+        seller: s.sellerType === 'Branch' ? (s.branch?.name || 'Branch') : (s.sellerType === 'SalesRep' ? (s.salesRep?.name || 'Sales Rep') : (s.distributor?.name || 'Distributor'))
       })),
       productWise,
       weeklyTrend,
@@ -105,46 +134,85 @@ const getBranchSales = async (req, res) => {
 
 // @desc    Create a new sale
 // @route   POST /api/branch-sales
-// @access  Private/Branch
+// @access  Private
 const createSale = async (req, res) => {
   try {
-    const { customerName, items, paymentMethod } = req.body;
-    const branch = await Branch.findOne({ user: req.user._id });
+    const { 
+      customerName, 
+      customerPhone,
+      items, 
+      paymentMethod,
+      billingType,
+      gstRate,
+      taxableAmount,
+      gstAmount,
+      discount,
+      totalAmount,
+      notes
+    } = req.body;
 
-    if (!branch) return res.status(404).json({ message: 'Branch not found' });
+    let sellerType = 'Branch';
+    let sellerId = null;
+    let inventoryModel = BranchInventory;
+    let inventoryQuery = {};
+
+    if (req.user.role === 'branch') {
+      const branch = await Branch.findOne({ user: req.user._id });
+      if (!branch) return res.status(404).json({ message: 'Branch not found' });
+      sellerId = branch._id;
+      inventoryQuery = { branch: branch._id };
+    } else if (req.user.role === 'sales') {
+      sellerType = 'SalesRep';
+      const salesRep = await SalesRep.findOne({ user: req.user._id });
+      if (!salesRep) return res.status(404).json({ message: 'Sales Rep not found' });
+      sellerId = salesRep._id;
+      inventoryModel = SalesRepInventory;
+      inventoryQuery = { salesRep: salesRep._id };
+    } else if (req.user.role === 'distributor') {
+      sellerType = 'Distributor';
+      const distributor = await Distributor.findOne({ user: req.user._id });
+      if (!distributor) return res.status(404).json({ message: 'Distributor not found' });
+      sellerId = distributor._id;
+      inventoryModel = DistributorInventory;
+      inventoryQuery = { distributor: distributor._id };
+    }
 
     let totalQty = 0;
-    let totalAmount = 0;
 
-    // First pass: Verify all items have sufficient stock and valid quantities
+    // Verify stock
     for (const item of items) {
-      if (item.qty <= 0) {
-        return res.status(400).json({ message: `Invalid quantity for ${item.name || 'an item'}` });
-      }
-      const inventory = await BranchInventory.findOne({ branch: branch._id, product: item.product });
+      const inventory = await inventoryModel.findOne({ ...inventoryQuery, product: item.product });
       if (!inventory || inventory.currentStock < item.qty) {
-        return res.status(400).json({ message: `Insufficient stock for ${item.name || 'an item'}` });
+        return res.status(400).json({ message: `Insufficient stock for ${item.name}` });
       }
     }
 
-    // Second pass: Deduct from inventory and calculate totals
+    // Deduct stock
     for (const item of items) {
-      const inventory = await BranchInventory.findOne({ branch: branch._id, product: item.product });
+      const inventory = await inventoryModel.findOne({ ...inventoryQuery, product: item.product });
       inventory.currentStock -= item.qty;
       await inventory.save();
-
       totalQty += Number(item.qty);
-      totalAmount += (Number(item.qty) * Number(item.price));
     }
 
     const sale = await Sale.create({
-      branch: branch._id,
+      sellerType,
+      branch: sellerType === 'Branch' ? sellerId : null,
+      salesRep: sellerType === 'SalesRep' ? sellerId : null,
+      distributor: sellerType === 'Distributor' ? sellerId : null,
       invoiceId: `INV-${Date.now().toString().slice(-6)}`,
       customerName,
+      customerPhone,
       items,
+      billingType: billingType || 'Without GST',
+      gstRate: gstRate || 0,
+      taxableAmount: taxableAmount || 0,
+      gstAmount: gstAmount || 0,
+      discount: discount || 0,
       totalQty,
       totalAmount,
-      paymentMethod: paymentMethod || 'Cash'
+      paymentMethod: paymentMethod || 'Cash',
+      notes
     });
 
     res.status(201).json(sale);
@@ -153,16 +221,25 @@ const createSale = async (req, res) => {
   }
 };
 
-// @desc    Get branch reports with filters
+// @desc    Get reports with filters
 // @route   GET /api/branch-sales/reports
-// @access  Private/Branch
+// @access  Private
 const getBranchReport = async (req, res) => {
   try {
     const { startDate, endDate, type } = req.query;
-    const branch = await Branch.findOne({ user: req.user._id });
-    if (!branch) return res.status(404).json({ message: 'Branch not found' });
+    let query = {};
 
-    let query = { branch: branch._id };
+    if (req.user.role === 'branch') {
+        const branch = await Branch.findOne({ user: req.user._id });
+        query = { branch: branch._id };
+    } else if (req.user.role === 'sales') {
+        const salesRep = await SalesRep.findOne({ user: req.user._id });
+        query = { salesRep: salesRep._id };
+    } else if (req.user.role === 'distributor') {
+        const distributor = await Distributor.findOne({ user: req.user._id });
+        query = { distributor: distributor._id };
+    }
+
     if (startDate && endDate) {
       query.date = { 
         $gte: moment(startDate).startOf('day').toDate(), 
@@ -184,29 +261,28 @@ const getBranchReport = async (req, res) => {
       return res.json(reportData);
     }
 
-    if (type === 'category') {
-      const categoryMap = {};
-      sales.forEach(s => {
-        s.items.forEach(item => {
-          const cat = item.category || 'General'; 
-          if (!categoryMap[cat]) categoryMap[cat] = { "Category": cat, "Units Sold": 0, "Revenue": 0 };
-          categoryMap[cat]["Units Sold"] += item.qty;
-          categoryMap[cat]["Revenue"] += item.total || (item.qty * item.price);
-        });
-      });
-      return res.json(Object.values(categoryMap));
-    }
-
     if (type === 'products') {
       const productMap = {};
       sales.forEach(s => {
         s.items.forEach(item => {
-          if (!productMap[item.name]) productMap[item.name] = { "Product Name": item.name, "Category": item.category || 'N/A', "Units": 0, "Total Sales": 0 };
-          productMap[item.name]["Units"] += item.qty;
-          productMap[item.name]["Total Sales"] += item.total || (item.qty * item.price);
+          if (!productMap[item.name]) {
+            productMap[item.name] = { "Product Name": item.name, "Total Sold": 0, "Total Sales": 0 };
+          }
+          productMap[item.name]["Total Sold"] += item.qty;
+          productMap[item.name]["Total Sales"] += (item.qty * item.price);
         });
       });
       return res.json(Object.values(productMap));
+    }
+
+    if (type === 'category') {
+      // Assuming products have categories, but since items array might not have category, 
+      // we'll group by a dummy "Retail" for now or use product info if available.
+      // Since items in Sale model don't have category, we just return a summary.
+      const reportData = [
+        { "Category": "General Retail", "Transactions": sales.length, "Revenue": sales.reduce((sum, s) => sum + s.totalAmount, 0) }
+      ];
+      return res.json(reportData);
     }
 
     res.json(sales);
@@ -215,56 +291,71 @@ const getBranchReport = async (req, res) => {
   }
 };
 
-// @desc    Get branch dashboard data
+// @desc    Get dashboard data
 // @route   GET /api/branch-sales/dashboard
-// @access  Private/Branch
+// @access  Private
 const getBranchDashboard = async (req, res) => {
   try {
-    const branch = await Branch.findOne({ user: req.user._id });
-    if (!branch) return res.status(404).json({ message: 'Branch not found' });
+    let query = {};
+    let inventoryQuery = {};
+    let inventoryModel = BranchInventory;
+    let name = '';
 
-    // 1. Get all sales for this branch
-    const sales = await Sale.find({ branch: branch._id }).sort({ date: -1 });
+    if (req.user.role === 'branch') {
+      const branch = await Branch.findOne({ user: req.user._id });
+      if (!branch) return res.status(404).json({ message: 'Branch not found' });
+      query = { branch: branch._id };
+      inventoryQuery = { branch: branch._id };
+      name = branch.name;
+    } else if (req.user.role === 'sales') {
+      const salesRep = await SalesRep.findOne({ user: req.user._id });
+      if (!salesRep) return res.status(404).json({ message: 'Sales Rep not found' });
+      query = { salesRep: salesRep._id };
+      inventoryQuery = { salesRep: salesRep._id };
+      inventoryModel = SalesRepInventory;
+      name = salesRep.name;
+    } else if (req.user.role === 'distributor') {
+      const distributor = await Distributor.findOne({ user: req.user._id });
+      if (!distributor) return res.status(404).json({ message: 'Distributor not found' });
+      query = { distributor: distributor._id };
+      inventoryQuery = { distributor: distributor._id };
+      inventoryModel = DistributorInventory;
+      name = distributor.name;
+    }
 
-    // 2. Today's stats
+    const sales = await Sale.find(query).sort({ date: -1 });
     const today = moment().startOf('day');
     const todaySales = sales.filter(s => moment(s.date).isSameOrAfter(today));
     const todayRevenue = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
     const todayQty = todaySales.reduce((sum, s) => sum + s.totalQty, 0);
+    const totalCustomers = new Set(sales.map(s => s.customerPhone || s.customerName)).size;
 
-    // 3. Weekly trend (last 7 days including today)
     const weeklyTrend = [];
     for (let i = 6; i >= 0; i--) {
       const date = moment().subtract(i, 'days');
       const dateStr = date.format('YYYY-MM-DD');
-      const dayName = date.format('ddd');
-      
       const dayRev = sales
         .filter(s => moment(s.date).format('YYYY-MM-DD') === dateStr)
         .reduce((sum, s) => sum + s.totalAmount, 0);
-      
-      weeklyTrend.push({ name: dayName, sales: dayRev });
+      weeklyTrend.push({ name: date.format('ddd'), sales: dayRev });
     }
 
-    // 4. Inventory stats
-    const inventory = await BranchInventory.find({ branch: branch._id })
-      .populate('product', 'price minLevel');
-    
+    const inventory = await inventoryModel.find(inventoryQuery).populate('product', 'price minLevel');
     const totalItems = inventory.reduce((sum, item) => sum + item.currentStock, 0);
     const totalValue = inventory.reduce((sum, item) => sum + (item.currentStock * (item.product?.price || 0)), 0);
     const lowStockCount = inventory.filter(item => item.currentStock > 0 && item.currentStock <= (item.product?.minLevel || 5)).length;
-    const outOfStockCount = inventory.filter(item => item.currentStock === 0).length;
 
     res.json({
-      branchName: branch.name,
+      name,
       stats: {
         totalItems,
+        totalProducts: inventory.length,
         totalValue,
         lowStockCount,
-        outOfStockCount,
         todayRevenue,
         todayQty,
-        totalSales: sales.length
+        totalSales: sales.length,
+        totalCustomers
       },
       weeklyTrend,
       recentSales: sales.slice(0, 5).map(s => ({
@@ -273,6 +364,16 @@ const getBranchDashboard = async (req, res) => {
         amount: s.totalAmount,
         time: moment(s.date).fromNow()
       })),
+      topProducts: Object.values(
+        sales.reduce((acc, sale) => {
+          sale.items.forEach(item => {
+            if (!acc[item.name]) acc[item.name] = { name: item.name, qty: 0, revenue: 0 };
+            acc[item.name].qty += item.qty;
+            acc[item.name].revenue += (item.qty * item.price);
+          });
+          return acc;
+        }, {})
+      ).sort((a, b) => b.qty - a.qty).slice(0, 5),
       lowStockPreview: inventory
         .filter(item => item.currentStock <= (item.product?.minLevel || 5))
         .sort((a, b) => a.currentStock - b.currentStock)

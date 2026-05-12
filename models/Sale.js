@@ -1,10 +1,23 @@
 const mongoose = require('mongoose');
 
 const saleSchema = new mongoose.Schema({
+  sellerType: {
+    type: String,
+    enum: ['Branch', 'SalesRep', 'Distributor'],
+    required: true,
+    default: 'Branch'
+  },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
-    required: true,
+  },
+  salesRep: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SalesRep',
+  },
+  distributor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Distributor',
   },
   invoiceId: {
     type: String,
@@ -14,6 +27,9 @@ const saleSchema = new mongoose.Schema({
   customerName: {
     type: String,
     required: true,
+  },
+  customerPhone: {
+    type: String,
   },
   items: [
     {
@@ -28,6 +44,28 @@ const saleSchema = new mongoose.Schema({
       total: Number,
     }
   ],
+  billingType: {
+    type: String,
+    enum: ['With GST', 'Without GST'],
+    required: true,
+    default: 'Without GST'
+  },
+  gstRate: {
+    type: Number,
+    default: 0,
+  },
+  taxableAmount: {
+    type: Number,
+    required: true,
+  },
+  gstAmount: {
+    type: Number,
+    default: 0,
+  },
+  discount: {
+    type: Number,
+    default: 0,
+  },
   totalQty: {
     type: Number,
     required: true,
@@ -39,6 +77,9 @@ const saleSchema = new mongoose.Schema({
   paymentMethod: {
     type: String,
     default: 'Cash',
+  },
+  notes: {
+    type: String,
   },
   date: {
     type: Date,
