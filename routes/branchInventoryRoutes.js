@@ -9,3 +9,4 @@ router.put('/:id/adjust', protect, adjustStock);
 router.delete('/:id', protect, deleteBranchInventory);
 
 module.exports = router;
+

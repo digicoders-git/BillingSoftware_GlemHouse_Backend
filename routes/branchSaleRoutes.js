@@ -9,3 +9,4 @@ router.get('/dashboard', protect, getBranchDashboard);
 router.post('/', protect, createSale);
 
 module.exports = router;
+

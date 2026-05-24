@@ -58,9 +58,9 @@ const createDispatch = async (req, res) => {
       if (!branchDoc) return res.status(404).json({ message: 'Receiver branch not found' });
       receiverBranch = branchDoc._id;
     } else if (receiverType === 'SalesRep') {
-      const salesRepDoc = await SalesRep.findById(receiverId);
-      if (!salesRepDoc) return res.status(404).json({ message: 'Receiver SalesRep not found' });
-      receiverSalesRep = salesRepDoc._id;
+      const SalesRepDoc = await SalesRep.findById(receiverId);
+      if (!SalesRepDoc) return res.status(404).json({ message: 'Receiver SalesRep not found' });
+      receiverSalesRep = SalesRepDoc._id;
     } else if (receiverType === 'Distributor') {
       const distributorDoc = await Distributor.findById(receiverId);
       if (!distributorDoc) return res.status(404).json({ message: 'Receiver Distributor not found' });
@@ -112,16 +112,26 @@ const createDispatch = async (req, res) => {
     // 5. Deduct from Sender's Stock and log it
     for (const item of items) {
       if (senderType === 'Admin') {
-        // Deduct from Main Product stock
-        await Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.qty } });
-        
-        await InventoryLog.create({
-          product: item.product,
-          type: 'Stock Out',
-          quantity: item.qty,
-          reason: `Admin Dispatched to ${receiverType}: ${invoiceNo} (${trackingCode})`,
-          adjustedBy: req.user._id
-        });
+        if (billingType !== 'Transfer') {
+          // Deduct from Main Product stock
+          await Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.qty } });
+          
+          await InventoryLog.create({
+            product: item.product,
+            type: 'Stock Out',
+            quantity: item.qty,
+            reason: `Admin Dispatched to ${receiverType}: ${invoiceNo} (${trackingCode})`,
+            adjustedBy: req.user._id
+          });
+        } else {
+          await InventoryLog.create({
+            product: item.product,
+            type: 'Transfer Out',
+            quantity: item.qty,
+            reason: `Admin Transferred to ${receiverType}: ${invoiceNo} (${trackingCode})`,
+            adjustedBy: req.user._id
+          });
+        }
       } else if (senderType === 'Branch') {
         // VALIDATION: Check if Branch has enough stock
         const branchStock = await BranchInventory.findOne({ branch: senderBranch, product: item.product });
@@ -137,7 +147,7 @@ const createDispatch = async (req, res) => {
 
         await InventoryLog.create({
           branch: senderBranch,
-          salesRep: receiverType === 'SalesRep' ? receiverSalesRep : null,
+          SalesRep: receiverType === 'SalesRep' ? receiverSalesRep : null,
           product: item.product,
           type: 'Stock Out',
           quantity: item.qty,
@@ -146,18 +156,18 @@ const createDispatch = async (req, res) => {
         });
       } else if (senderType === 'SalesRep') {
          // Deduct from SalesRep stock
-         const salesRepStock = await SalesRepInventory.findOne({ salesRep: senderSalesRep, product: item.product });
-         if (!salesRepStock || salesRepStock.currentStock < item.qty) {
+         const SalesRepStock = await SalesRepInventory.findOne({ SalesRep: senderSalesRep, product: item.product });
+         if (!SalesRepStock || SalesRepStock.currentStock < item.qty) {
             throw new Error(`Insufficient shelf stock for ${item.name}`);
          }
 
          await SalesRepInventory.findOneAndUpdate(
-           { salesRep: senderSalesRep, product: item.product },
+           { SalesRep: senderSalesRep, product: item.product },
            { $inc: { currentStock: -item.qty } }
          );
 
          await InventoryLog.create({
-           salesRep: senderSalesRep,
+           SalesRep: senderSalesRep,
            product: item.product,
            type: 'Stock Out',
            quantity: item.qty,
@@ -193,7 +203,7 @@ const getDispatches = async (req, res) => {
 
   let query = { ...keyword };
 
-  // Filter based on role or specific branch/salesRep for admin
+  // Filter based on role or specific branch/SalesRep for admin
   if (req.user.role === 'branch') {
     const branch = await Branch.findOne({ user: req.user._id });
     if (branch) {
@@ -230,8 +240,8 @@ const getDispatches = async (req, res) => {
           { senderBranch: req.query.branchId }
         ]
       };
-    } else if (req.query.salesRepId) {
-      query = { ...query, receiverSalesRep: req.query.salesRepId };
+    } else if (req.query.SalesRepId) {
+      query = { ...query, receiverSalesRep: req.query.SalesRepId };
     }
   }
 
@@ -242,6 +252,7 @@ const getDispatches = async (req, res) => {
     .populate('receiverSalesRep', 'name salesId')
     .populate('senderSalesRep', 'name salesId')
     .populate('receiverDistributor', 'name distributorId')
+    .populate('items.product', 'name sku hsn batch')
     .limit(pageSize)
     .skip(pageSize * (page - 1))
     .sort({ createdAt: -1 });
@@ -259,7 +270,7 @@ const getDispatchById = async (req, res) => {
     .populate('senderSalesRep', 'name salesId')
     .populate('receiverSalesRep', 'name salesId contact email location')
     .populate('receiverDistributor', 'name distributorId contact email location')
-    .populate('items.product', 'name sku');
+    .populate('items.product', 'name sku hsn batch');
 
   if (dispatch) {
     res.json(dispatch);
@@ -286,30 +297,41 @@ const updateDispatchStatus = async (req, res) => {
   if (status === 'Received') {
     for (const item of dispatch.items) {
       if (dispatch.receiverType === 'Branch') {
-        await BranchInventory.findOneAndUpdate(
-          { branch: dispatch.receiverBranch, product: item.product },
-          { $inc: { currentStock: item.qty } },
-          { upsert: true, new: true }
-        );
+        if (dispatch.billingType !== 'Transfer') {
+          await BranchInventory.findOneAndUpdate(
+            { branch: dispatch.receiverBranch, product: item.product },
+            { $inc: { currentStock: item.qty } },
+            { upsert: true, new: true }
+          );
 
-        await InventoryLog.create({
-          branch: dispatch.receiverBranch,
-          product: item.product,
-          type: 'Stock In',
-          quantity: item.qty,
-          reason: `Dispatch Received: ${dispatch.invoiceNo}`,
-          adjustedBy: req.user._id
-        });
+          await InventoryLog.create({
+            branch: dispatch.receiverBranch,
+            product: item.product,
+            type: 'Stock In',
+            quantity: item.qty,
+            reason: `Dispatch Received: ${dispatch.invoiceNo}`,
+            adjustedBy: req.user._id
+          });
+        } else {
+          await InventoryLog.create({
+            branch: dispatch.receiverBranch,
+            product: item.product,
+            type: 'Transfer In',
+            quantity: item.qty,
+            reason: `Transfer Received from Admin: ${dispatch.invoiceNo}`,
+            adjustedBy: req.user._id
+          });
+        }
       } else if (dispatch.receiverType === 'SalesRep') {
         await SalesRepInventory.findOneAndUpdate(
-          { salesRep: dispatch.receiverSalesRep, product: item.product },
+          { SalesRep: dispatch.receiverSalesRep, product: item.product },
           { $inc: { currentStock: item.qty } },
           { upsert: true, new: true }
         );
 
         // Audit Log for SalesRep Stock Receipt
         await InventoryLog.create({
-          salesRep: dispatch.receiverSalesRep,
+          SalesRep: dispatch.receiverSalesRep,
           product: item.product,
           type: 'Stock In',
           quantity: item.qty,
@@ -348,3 +370,4 @@ module.exports = {
   getDispatchById,
   updateDispatchStatus,
 };
+

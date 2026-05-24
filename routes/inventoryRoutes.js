@@ -14,3 +14,4 @@ router.get('/logs', protect, getInventoryLogs);
 router.get('/product-report', protect, admin, getProductInventoryReport);
 
 module.exports = router;
+

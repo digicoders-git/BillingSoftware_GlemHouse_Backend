@@ -13,3 +13,4 @@ router.route('/:id').get(protect, getDispatchById);
 router.patch('/:id/status', protect, updateDispatchStatus);
 
 module.exports = router;
+

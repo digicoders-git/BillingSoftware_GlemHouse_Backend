@@ -66,6 +66,8 @@ const dispatchSchema = new mongoose.Schema({
       },
       name: String,
       sku: String,
+      hsn: String,
+      batch: String,
       qty: {
         type: Number,
         required: true,
@@ -82,7 +84,7 @@ const dispatchSchema = new mongoose.Schema({
   ],
   billingType: {
     type: String,
-    enum: ['With GST', 'Without GST'],
+    enum: ['With GST', 'Without GST', 'Transfer'],
     required: true,
   },
   gstRate: {
@@ -120,3 +122,4 @@ const dispatchSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Dispatch', dispatchSchema);
+

@@ -26,8 +26,11 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: 5,
   },
+  hsn: String,
+  batch: String,
 }, {
   timestamps: true,
 });
 
 module.exports = mongoose.model('Product', productSchema);
+

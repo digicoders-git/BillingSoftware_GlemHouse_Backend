@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 // @desc    Get all sales
 // @route   GET /api/sales
 // @access  Private/Admin
-const getSales = async (req, res) => {
+const getSalesReps = async (req, res) => {
   const pageSize = 10;
   const page = Number(req.query.pageNumber) || 1;
 
@@ -34,26 +34,26 @@ const getSales = async (req, res) => {
 // @desc    Get single sales
 // @route   GET /api/sales/:id
 // @access  Private
-const getSalesById = async (req, res) => {
+const getSalesRepById = async (req, res) => {
   const sales = await SalesRep.findById(req.params.id);
 
   if (sales) {
     res.json(sales);
   } else {
-    res.status(404).json({ message: 'Sales record not found' });
+    res.status(404).json({ message: 'sales record not found' });
   }
 };
 
 // @desc    Create a sales
 // @route   POST /api/sales
 // @access  Private/Admin
-const createSales = async (req, res) => {
+const createSalesRep = async (req, res) => {
   const { salesId, name, location, contact, email, password } = req.body;
 
-  const salesExists = await SalesRep.findOne({ $or: [{ salesId }, { email }] });
+  const salesRepExists = await SalesRep.findOne({ $or: [{ salesId }, { email }] });
 
-  if (salesExists) {
-    return res.status(400).json({ message: 'Sales ID or Email already exists' });
+  if (salesRepExists) {
+    return res.status(400).json({ message: 'sales ID or Email already exists' });
   }
 
   // Create User first
@@ -87,7 +87,7 @@ const createSales = async (req, res) => {
 // @desc    Update a sales
 // @route   PUT /api/sales/:id
 // @access  Private/Admin
-const updateSales = async (req, res) => {
+const updateSalesRep = async (req, res) => {
   const sales = await SalesRep.findById(req.params.id);
 
   if (sales) {
@@ -100,7 +100,7 @@ const updateSales = async (req, res) => {
       sales.password = req.body.password;
     }
 
-    const updatedSales = await sales.save();
+    const updatedSalesRep = await sales.save();
 
     // Also update User
     const user = await User.findById(sales.user);
@@ -113,31 +113,32 @@ const updateSales = async (req, res) => {
       await user.save();
     }
 
-    res.json(updatedSales);
+    res.json(updatedSalesRep);
   } else {
-    res.status(404).json({ message: 'Sales not found' });
+    res.status(404).json({ message: 'sales not found' });
   }
 };
 
 // @desc    Delete a sales
 // @route   DELETE /api/sales/:id
 // @access  Private/Admin
-const deleteSales = async (req, res) => {
+const deleteSalesRep = async (req, res) => {
   const sales = await SalesRep.findById(req.params.id);
 
   if (sales) {
     await User.findByIdAndDelete(sales.user);
     await SalesRep.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Sales removed' });
+    res.json({ message: 'sales removed' });
   } else {
-    res.status(404).json({ message: 'Sales not found' });
+    res.status(404).json({ message: 'sales not found' });
   }
 };
 
 module.exports = {
-  getSales,
-  getSalesById,
-  createSales,
-  updateSales,
-  deleteSales,
+  getSalesReps,
+  getSalesRepById,
+  createSalesRep,
+  updateSalesRep,
+  deleteSalesRep,
 };
+

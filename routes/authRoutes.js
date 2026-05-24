@@ -7,3 +7,4 @@ router.post('/register', asyncHandler(registerUser));
 router.post('/login', asyncHandler(loginUser));
 
 module.exports = router;
+

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
-const salesRepInventorySchema = new mongoose.Schema({
-  salesRep: {
+const SalesRepInventorySchema = new mongoose.Schema({
+  SalesRep: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'SalesRep',
     required: true,
@@ -25,6 +25,7 @@ const salesRepInventorySchema = new mongoose.Schema({
 });
 
 // Ensure a SalesRep can only have one entry per product
-salesRepInventorySchema.index({ salesRep: 1, product: 1 }, { unique: true });
+SalesRepInventorySchema.index({ SalesRep: 1, product: 1 }, { unique: true });
 
-module.exports = mongoose.model('SalesRepInventory', salesRepInventorySchema);
+module.exports = mongoose.model('SalesRepInventory', SalesRepInventorySchema);
+

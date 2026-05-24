@@ -6,7 +6,7 @@ const inventoryLogSchema = new mongoose.Schema({
     ref: 'Branch',
     // Optional: if null, it's admin/central inventory
   },
-  salesRep: {
+  SalesRep: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'SalesRep',
   },
@@ -21,7 +21,7 @@ const inventoryLogSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['Stock In', 'Stock Out'],
+    enum: ['Stock In', 'Stock Out', 'Transfer In', 'Transfer Out'],
     required: true,
   },
   quantity: {
@@ -46,3 +46,4 @@ const inventoryLogSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('InventoryLog', inventoryLogSchema);
+

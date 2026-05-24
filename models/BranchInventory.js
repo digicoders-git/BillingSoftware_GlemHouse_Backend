@@ -32,3 +32,4 @@ const branchInventorySchema = new mongoose.Schema({
 branchInventorySchema.index({ branch: 1, product: 1 }, { unique: true });
 
 module.exports = mongoose.model('BranchInventory', branchInventorySchema);
+

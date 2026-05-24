@@ -20,8 +20,8 @@ const getBranchSales = async (req, res) => {
       query = { branch: branch._id };
     } else if (req.user.role === 'sales') {
       const salesRep = await SalesRep.findOne({ user: req.user._id });
-      if (!salesRep) return res.status(404).json({ message: 'Sales Rep not found' });
-      query = { salesRep: salesRep._id };
+      if (!salesRep) return res.status(404).json({ message: 'sales Rep not found' });
+      query = { SalesRep: salesRep._id };
     } else if (req.user.role === 'distributor') {
       const distributor = await Distributor.findOne({ user: req.user._id });
       if (!distributor) return res.status(404).json({ message: 'Distributor not found' });
@@ -33,7 +33,7 @@ const getBranchSales = async (req, res) => {
 
     const sales = await Sale.find(query)
       .populate('branch', 'name')
-      .populate('salesRep', 'name')
+      .populate('SalesRep', 'name')
       .populate('distributor', 'name')
       .sort({ createdAt: -1 });
 
@@ -116,7 +116,7 @@ const getBranchSales = async (req, res) => {
         time: moment(s.date).format('hh:mm A'),
         date: moment(s.date).format('YYYY-MM-DD'),
         sellerType: s.sellerType,
-        seller: s.sellerType === 'Branch' ? (s.branch?.name || 'Branch') : (s.sellerType === 'SalesRep' ? (s.salesRep?.name || 'Sales Rep') : (s.distributor?.name || 'Distributor'))
+        seller: s.sellerType === 'Branch' ? (s.branch?.name || 'Branch') : (s.sellerType === 'SalesRep' ? (s.SalesRep?.name || 'sales Rep') : (s.distributor?.name || 'Distributor'))
       })),
       productWise,
       weeklyTrend,
@@ -164,10 +164,10 @@ const createSale = async (req, res) => {
     } else if (req.user.role === 'sales') {
       sellerType = 'SalesRep';
       const salesRep = await SalesRep.findOne({ user: req.user._id });
-      if (!salesRep) return res.status(404).json({ message: 'Sales Rep not found' });
+      if (!salesRep) return res.status(404).json({ message: 'sales Rep not found' });
       sellerId = salesRep._id;
       inventoryModel = SalesRepInventory;
-      inventoryQuery = { salesRep: salesRep._id };
+      inventoryQuery = { SalesRep: salesRep._id };
     } else if (req.user.role === 'distributor') {
       sellerType = 'Distributor';
       const distributor = await Distributor.findOne({ user: req.user._id });
@@ -198,7 +198,7 @@ const createSale = async (req, res) => {
     const sale = await Sale.create({
       sellerType,
       branch: sellerType === 'Branch' ? sellerId : null,
-      salesRep: sellerType === 'SalesRep' ? sellerId : null,
+      SalesRep: sellerType === 'SalesRep' ? sellerId : null,
       distributor: sellerType === 'Distributor' ? sellerId : null,
       invoiceId: `INV-${Date.now().toString().slice(-6)}`,
       customerName,
@@ -234,7 +234,7 @@ const getBranchReport = async (req, res) => {
         query = { branch: branch._id };
     } else if (req.user.role === 'sales') {
         const salesRep = await SalesRep.findOne({ user: req.user._id });
-        query = { salesRep: salesRep._id };
+        query = { SalesRep: salesRep._id };
     } else if (req.user.role === 'distributor') {
         const distributor = await Distributor.findOne({ user: req.user._id });
         query = { distributor: distributor._id };
@@ -266,10 +266,10 @@ const getBranchReport = async (req, res) => {
       sales.forEach(s => {
         s.items.forEach(item => {
           if (!productMap[item.name]) {
-            productMap[item.name] = { "Product Name": item.name, "Total Sold": 0, "Total Sales": 0 };
+            productMap[item.name] = { "Product Name": item.name, "Total Sold": 0, "Total sales": 0 };
           }
           productMap[item.name]["Total Sold"] += item.qty;
-          productMap[item.name]["Total Sales"] += (item.qty * item.price);
+          productMap[item.name]["Total sales"] += (item.qty * item.price);
         });
       });
       return res.json(Object.values(productMap));
@@ -309,9 +309,9 @@ const getBranchDashboard = async (req, res) => {
       name = branch.name;
     } else if (req.user.role === 'sales') {
       const salesRep = await SalesRep.findOne({ user: req.user._id });
-      if (!salesRep) return res.status(404).json({ message: 'Sales Rep not found' });
-      query = { salesRep: salesRep._id };
-      inventoryQuery = { salesRep: salesRep._id };
+      if (!salesRep) return res.status(404).json({ message: 'sales Rep not found' });
+      query = { SalesRep: salesRep._id };
+      inventoryQuery = { SalesRep: salesRep._id };
       inventoryModel = SalesRepInventory;
       name = salesRep.name;
     } else if (req.user.role === 'distributor') {
@@ -395,3 +395,4 @@ module.exports = {
   getBranchReport,
   getBranchDashboard
 };
+

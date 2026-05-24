@@ -8,3 +8,4 @@ router.get('/monthly', protect, getMonthlyReport);
 router.get('/yearly', protect, getYearlyReport);
 
 module.exports = router;
+

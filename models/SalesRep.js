@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const salesSchema = new mongoose.Schema({
+const SalesRepSchema = new mongoose.Schema({
   salesId: {
     type: String,
     required: true,
@@ -40,4 +40,5 @@ const salesSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-module.exports = mongoose.model('SalesRep', salesSchema);
+module.exports = mongoose.model('SalesRep', SalesRepSchema);
+

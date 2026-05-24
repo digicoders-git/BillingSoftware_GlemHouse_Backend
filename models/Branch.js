@@ -49,3 +49,4 @@ const branchSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Branch', branchSchema);
+

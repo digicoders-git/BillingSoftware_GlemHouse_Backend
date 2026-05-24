@@ -7,3 +7,4 @@ router.get('/allocation', protect, getAllocationData);
 router.get('/movement', protect, getMovementData);
 
 module.exports = router;
+

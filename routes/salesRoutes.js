@@ -1,21 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const {
-  getSales,
-  getSalesById,
-  createSales,
-  updateSales,
-  deleteSales,
+  getSalesReps,
+  getSalesRepById,
+  createSalesRep,
+  updateSalesRep,
+  deleteSalesRep,
 } = require('../controllers/salesController');
 const { protect, admin } = require('../middlewares/authMiddleware');
 
 router.route('/')
-  .get(protect, getSales)
-  .post(protect, admin, createSales);
+  .get(protect, getSalesReps)
+  .post(protect, admin, createSalesRep);
 
 router.route('/:id')
-  .get(protect, getSalesById)
-  .put(protect, admin, updateSales)
-  .delete(protect, admin, deleteSales);
+  .get(protect, getSalesRepById)
+  .put(protect, admin, updateSalesRep)
+  .delete(protect, admin, deleteSalesRep);
 
 module.exports = router;
+

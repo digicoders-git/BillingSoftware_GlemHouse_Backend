@@ -15,3 +15,4 @@ router.route('/profile')
 router.put('/change-password', protect, asyncHandler(changePassword));
 
 module.exports = router;
+

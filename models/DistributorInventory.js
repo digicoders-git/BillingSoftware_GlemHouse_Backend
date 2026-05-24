@@ -24,3 +24,4 @@ const distributorInventorySchema = new mongoose.Schema({
 distributorInventorySchema.index({ distributor: 1, product: 1 }, { unique: true });
 
 module.exports = mongoose.model('DistributorInventory', distributorInventorySchema);
+

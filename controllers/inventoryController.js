@@ -93,7 +93,7 @@ const getInventoryLogs = async (req, res) => {
       query = { branch: branch?._id };
     } else if (req.user.role === 'sales') {
       const salesRep = await SalesRep.findOne({ user: req.user._id });
-      query = { salesRep: salesRep?._id };
+      query = { SalesRep: salesRep?._id };
     } else if (req.user.role === 'distributor') {
       const distributor = await Distributor.findOne({ user: req.user._id });
       query = { distributor: distributor?._id };
@@ -106,7 +106,7 @@ const getInventoryLogs = async (req, res) => {
       .populate('product', 'name sku')
       .populate('adjustedBy', 'name')
       .populate('branch', 'name branchId')
-      .populate('salesRep', 'name salesId')
+      .populate('SalesRep', 'name salesId')
       .populate('distributor', 'name distributorId')
       .sort({ createdAt: -1 });
     res.json(logs);
@@ -141,6 +141,7 @@ const getProductInventoryReport = async (req, res) => {
         totalIn,
         totalOut,
         price: p.price,
+        minLevel: p.minLevel || 5,
         value: (p.stock + branchStock) * p.price
       };
     }));
@@ -157,3 +158,4 @@ module.exports = {
   getInventoryLogs,
   getProductInventoryReport
 };
+

@@ -23,18 +23,18 @@ const getBranchInventory = async (req, res) => {
       const branch = await Branch.findById(branchId);
       name = branch?.name || 'Branch';
       inventory = await BranchInventory.find({ branch: branchId })
-        .populate('product', 'name category price sku image minLevel');
-    } else if (req.user.role === 'sales' || (req.user.role === 'admin' && req.query.salesRepId)) {
-      const salesRepId = req.user.role === 'sales' 
+        .populate('product', 'name category price sku image minLevel hsn batch');
+    } else if (req.user.role === 'sales' || (req.user.role === 'admin' && req.query.SalesRepId)) {
+      const SalesRepId = req.user.role === 'sales' 
         ? (await SalesRep.findOne({ user: req.user._id }))?._id 
-        : req.query.salesRepId;
+        : req.query.SalesRepId;
         
-      if (!salesRepId) return res.status(404).json({ message: 'Sales Rep not found' });
+      if (!SalesRepId) return res.status(404).json({ message: 'sales Rep not found' });
       
-      const salesRep = await SalesRep.findById(salesRepId);
-      name = salesRep?.name || 'Sales Rep';
-      inventory = await SalesRepInventory.find({ salesRep: salesRepId })
-        .populate('product', 'name category price sku image minLevel');
+      const salesRep = await SalesRep.findById(SalesRepId);
+      name = salesRep?.name || 'sales Rep';
+      inventory = await SalesRepInventory.find({ SalesRep: SalesRepId })
+        .populate('product', 'name category price sku image minLevel hsn batch');
     } else {
       return res.status(403).json({ message: 'Unauthorized role or missing parameters' });
     }
@@ -51,6 +51,8 @@ const getBranchInventory = async (req, res) => {
         productID: item.product?._id,
         name: item.product?.name || 'Unknown',
         sku: item.product?.sku || 'N/A',
+        hsn: item.product?.hsn || '',
+        batch: item.product?.batch || '',
         category: item.product?.category || 'N/A',
         price: item.product?.price || 0,
         stock: item.currentStock,
@@ -167,3 +169,4 @@ module.exports = {
   getInventoryLogs,
   deleteBranchInventory
 };
+

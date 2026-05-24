@@ -32,7 +32,7 @@ const getProductById = async (req, res) => {
 // @route   POST /api/products
 // @access  Private/Admin
 const createProduct = async (req, res) => {
-  const { name, sku, price, stock, category, description, image, minLevel } = req.body;
+  const { name, sku, price, stock, category, description, image, minLevel, hsn, batch } = req.body;
   const Branch = require('../models/Branch');
   const BranchInventory = require('../models/BranchInventory');
 
@@ -57,6 +57,8 @@ const createProduct = async (req, res) => {
       description,
       image,
       minLevel: numericMinLevel,
+      hsn,
+      batch,
     });
 
     // If the user is a branch manager, link this product to their branch inventory
@@ -81,7 +83,7 @@ const createProduct = async (req, res) => {
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 const updateProduct = async (req, res) => {
-  const { name, price, stock, category, description, image, minLevel } = req.body;
+  const { name, price, stock, category, description, image, minLevel, hsn, batch } = req.body;
 
   try {
     const product = await Product.findById(req.params.id);
@@ -94,6 +96,8 @@ const updateProduct = async (req, res) => {
       product.description = description || product.description;
       product.image = image || product.image;
       product.minLevel = minLevel !== undefined ? minLevel : product.minLevel;
+      product.hsn = hsn !== undefined ? hsn : product.hsn;
+      product.batch = batch !== undefined ? batch : product.batch;
 
       const updatedProduct = await product.save();
       res.json(updatedProduct);
@@ -150,3 +154,4 @@ module.exports = {
   deleteProduct,
   seedProducts,
 };
+

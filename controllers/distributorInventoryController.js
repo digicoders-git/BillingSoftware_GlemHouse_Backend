@@ -60,3 +60,4 @@ const getDistributorInventory = async (req, res) => {
 module.exports = {
   getDistributorInventory
 };
+

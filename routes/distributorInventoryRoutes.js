@@ -7,3 +7,4 @@ router.route('/')
   .get(protect, getDistributorInventory);
 
 module.exports = router;
+

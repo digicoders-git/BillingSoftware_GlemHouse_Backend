@@ -12,8 +12,8 @@ const { protect } = require('../middlewares/authMiddleware');
 const asyncHandler = require('../middlewares/asyncHandler');
 
 router.route('/')
-  .get(protect, asyncHandler(getBranches))
-  .post(protect, asyncHandler(createBranch));
+.get(protect, asyncHandler(getBranches))
+.post(protect, asyncHandler(createBranch));
 
 router
   .route('/:id')
@@ -24,3 +24,4 @@ router
 router.patch('/:id/status', protect, asyncHandler(toggleBranchStatus));
 
 module.exports = router;
+

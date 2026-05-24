@@ -19,3 +19,4 @@ router.route('/:id')
   .delete(protect, admin, deleteDistributor);
 
 module.exports = router;
+

@@ -6,3 +6,4 @@ const { protect } = require('../middlewares/authMiddleware');
 router.get('/', protect, getDashboardData);
 
 module.exports = router;
+

@@ -31,7 +31,7 @@ const getDashboardData = async (req, res) => {
     const totalProductTypes = products.length;
     const totalCategories = [...new Set(products.map(p => p.category).filter(c => c))].length;
     
-    // Detailed Low Stock Items (WAREHOUSE ONLY)
+    // Detailed Low Stock Items (WAREHOUSE ONLY - negative or below minLevel)
     const lowStockItems = products
       .filter(p => p.stock <= (p.minLevel || 5))
       .map(p => ({
@@ -42,6 +42,9 @@ const getDashboardData = async (req, res) => {
         category: p.category
       }))
       .slice(0, 5);
+
+    // Low stock count based on warehouse stock
+    const lowStockCount = products.filter(p => p.stock <= (p.minLevel || 5)).length;
 
     // 2. Chart Data (Last 7 days)
     const chartData = [];
@@ -60,7 +63,8 @@ const getDashboardData = async (req, res) => {
       chartData.push({
         name: date.format('ddd'),
         dispatches: dailyDispatches.reduce((sum, d) => sum + (d.totalItems || 0), 0),
-        sales: dailySales.reduce((sum, s) => sum + (s.totalAmount || 0), 0)
+        sales: dailySales.reduce((sum, s) => sum + (s.totalAmount || 0), 0),
+        revenue: dailySales.reduce((sum, s) => sum + (s.totalAmount || 0), 0)
       });
     }
 
@@ -101,3 +105,4 @@ const getDashboardData = async (req, res) => {
 module.exports = {
   getDashboardData
 };
+

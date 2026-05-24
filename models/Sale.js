@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const saleSchema = new mongoose.Schema({
+const SaleSchema = new mongoose.Schema({
   sellerType: {
     type: String,
     enum: ['Branch', 'SalesRep', 'Distributor'],
@@ -11,7 +11,7 @@ const saleSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
   },
-  salesRep: {
+  SalesRep: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'SalesRep',
   },
@@ -89,4 +89,5 @@ const saleSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-module.exports = mongoose.model('Sale', saleSchema);
+module.exports = mongoose.model('Sale', SaleSchema);
+

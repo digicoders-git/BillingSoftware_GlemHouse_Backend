@@ -27,9 +27,9 @@ const protect = async (req, res, next) => {
         }
       } else if (req.user && req.user.role === 'sales') {
         const SalesRep = require('../models/SalesRep');
-        const sales = await SalesRep.findOne({ user: req.user._id });
-        if (!sales || sales.status !== 'Active') {
-          return res.status(401).json({ message: 'Sales account deactivated. Please contact admin.' });
+        const salesRep = await SalesRep.findOne({ user: req.user._id });
+        if (!salesRep || salesRep.status !== 'Active') {
+          return res.status(401).json({ message: 'Account deactivated. Please contact admin.' });
         }
       } else if (req.user && req.user.role === 'distributor') {
         const Distributor = require('../models/Distributor');
@@ -60,3 +60,4 @@ const admin = (req, res, next) => {
 };
 
 module.exports = { protect, admin };
+

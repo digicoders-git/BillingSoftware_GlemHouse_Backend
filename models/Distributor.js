@@ -41,3 +41,4 @@ const distributorSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Distributor', distributorSchema);
+

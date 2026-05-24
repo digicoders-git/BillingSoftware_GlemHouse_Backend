@@ -22,3 +22,4 @@ router.route('/:id')
 router.post('/seed', protect, seedProducts);
 
 module.exports = router;
+
