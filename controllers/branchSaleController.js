@@ -62,8 +62,8 @@ const getBranchSales = async (req, res) => {
 
     const sales = [...rawSales, ...rawDispatches].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    const totalSold = sales.reduce((sum, s) => sum + s.totalQty, 0);
-    const revenue = sales.reduce((sum, s) => sum + s.totalAmount, 0);
+    const totalSold = sales.reduce((sum, s) => sum + (Number(s.totalQty) || 0), 0);
+    const revenue = sales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
     const avgValue = sales.length > 0 ? (revenue / sales.length).toFixed(2) : 0;
 
     // Calculate product-wise sales
@@ -88,10 +88,10 @@ const getBranchSales = async (req, res) => {
         const isPrev7Days = moment(s.date).isBetween(moment().subtract(14, 'days'), moment().subtract(7, 'days'));
         
         if (isLast7Days) {
-          productMap[key].sales += item.qty;
-          productMap[key].revenue += item.total || (item.qty * item.price);
+          productMap[key].sales += Number(item.qty) || 0;
+          productMap[key].revenue += Number(item.total) || ((Number(item.qty) || 0) * (Number(item.price) || 0));
         } else if (isPrev7Days) {
-          productMap[key].lastWeekSales += item.qty;
+          productMap[key].lastWeekSales += Number(item.qty) || 0;
         }
       });
     });
@@ -392,8 +392,8 @@ const getBranchDashboard = async (req, res) => {
     const sales = [...rawSales, ...rawDispatches].sort((a, b) => new Date(b.date) - new Date(a.date));
     const today = moment().startOf('day');
     const todaySales = sales.filter(s => moment(s.date).isSameOrAfter(today));
-    const todayRevenue = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
-    const todayQty = todaySales.reduce((sum, s) => sum + s.totalQty, 0);
+    const todayRevenue = todaySales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const todayQty = todaySales.reduce((sum, s) => sum + (Number(s.totalQty) || 0), 0);
     const totalCustomers = new Set(sales.map(s => s.customerPhone || s.customerName)).size;
 
     const weeklyTrend = [];
@@ -402,7 +402,7 @@ const getBranchDashboard = async (req, res) => {
       const dateStr = date.format('YYYY-MM-DD');
       const dayRev = sales
         .filter(s => moment(s.date).format('YYYY-MM-DD') === dateStr)
-        .reduce((sum, s) => sum + s.totalAmount, 0);
+        .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
       weeklyTrend.push({ name: date.format('ddd'), sales: dayRev });
     }
 
@@ -434,8 +434,8 @@ const getBranchDashboard = async (req, res) => {
         sales.reduce((acc, sale) => {
           sale.items.forEach(item => {
             if (!acc[item.name]) acc[item.name] = { name: item.name, qty: 0, revenue: 0 };
-            acc[item.name].qty += item.qty;
-            acc[item.name].revenue += (item.qty * item.price);
+            acc[item.name].qty += Number(item.qty) || 0;
+            acc[item.name].revenue += ((Number(item.qty) || 0) * (Number(item.price) || 0));
           });
           return acc;
         }, {})
