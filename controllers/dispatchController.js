@@ -112,10 +112,10 @@ const createDispatch = async (req, res) => {
     // 5. Deduct from Sender's Stock and log it
     for (const item of items) {
       if (senderType === 'Admin') {
+        // Deduct from Main Product stock for all dispatch types
+        await Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.qty } });
+
         if (billingType !== 'Transfer') {
-          // Deduct from Main Product stock
-          await Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.qty } });
-          
           await InventoryLog.create({
             product: item.product,
             type: 'Stock Out',
@@ -297,13 +297,13 @@ const updateDispatchStatus = async (req, res) => {
   if (status === 'Received') {
     for (const item of dispatch.items) {
       if (dispatch.receiverType === 'Branch') {
-        if (dispatch.billingType !== 'Transfer') {
-          await BranchInventory.findOneAndUpdate(
-            { branch: dispatch.receiverBranch, product: item.product },
-            { $inc: { currentStock: item.qty } },
-            { upsert: true, new: true }
-          );
+        await BranchInventory.findOneAndUpdate(
+          { branch: dispatch.receiverBranch, product: item.product },
+          { $inc: { currentStock: item.qty } },
+          { upsert: true, new: true }
+        );
 
+        if (dispatch.billingType !== 'Transfer') {
           await InventoryLog.create({
             branch: dispatch.receiverBranch,
             product: item.product,
