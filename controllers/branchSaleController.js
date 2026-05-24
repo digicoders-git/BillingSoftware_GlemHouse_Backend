@@ -1,4 +1,5 @@
 const Sale = require('../models/Sale');
+const Dispatch = require('../models/Dispatch');
 const Branch = require('../models/Branch');
 const SalesRep = require('../models/SalesRep');
 const BranchInventory = require('../models/BranchInventory');
@@ -14,14 +15,17 @@ const moment = require('moment');
 const getBranchSales = async (req, res) => {
   try {
     let query = {};
+    let dispatchQuery = null;
     if (req.user.role === 'branch') {
       const branch = await Branch.findOne({ user: req.user._id });
       if (!branch) return res.status(404).json({ message: 'Branch not found' });
       query = { branch: branch._id };
+      dispatchQuery = { senderBranch: branch._id };
     } else if (req.user.role === 'sales') {
       const salesRep = await SalesRep.findOne({ user: req.user._id });
       if (!salesRep) return res.status(404).json({ message: 'sales Rep not found' });
       query = { SalesRep: salesRep._id };
+      dispatchQuery = { senderSalesRep: salesRep._id };
     } else if (req.user.role === 'distributor') {
       const distributor = await Distributor.findOne({ user: req.user._id });
       if (!distributor) return res.status(404).json({ message: 'Distributor not found' });
@@ -29,13 +33,34 @@ const getBranchSales = async (req, res) => {
     } else {
         // Admin sees all
         query = {};
+        dispatchQuery = {};
     }
 
-    const sales = await Sale.find(query)
-      .populate('branch', 'name')
-      .populate('SalesRep', 'name')
-      .populate('distributor', 'name')
-      .sort({ createdAt: -1 });
+    const [salesRaw, dispatchesRaw] = await Promise.all([
+      Sale.find(query)
+        .populate('branch', 'name')
+        .populate('SalesRep', 'name')
+        .populate('distributor', 'name')
+        .sort({ createdAt: -1 }),
+      dispatchQuery ? Dispatch.find(dispatchQuery).sort({ createdAt: -1 }) : Promise.resolve([])
+    ]);
+
+    const rawSales = salesRaw.map(s => ({
+      _id: s._id, invoiceId: s.invoiceId, customerName: s.customerName, customerPhone: s.customerPhone,
+      items: s.items, billingType: s.billingType, gstRate: s.gstRate, taxableAmount: s.taxableAmount,
+      gstAmount: s.gstAmount, discount: s.discount, totalQty: s.totalQty, totalAmount: s.totalAmount,
+      createdAt: s.createdAt, date: s.date, sellerType: s.sellerType, branch: s.branch, SalesRep: s.SalesRep, distributor: s.distributor
+    }));
+
+    const rawDispatches = dispatchesRaw.map(d => ({
+      _id: d._id, invoiceId: d.invoiceNo, customerName: `Dispatch to ${d.receiverType}`, customerPhone: '-',
+      items: d.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, product: i.product })),
+      billingType: d.billingType, gstRate: d.gstRate, taxableAmount: d.taxableAmount, gstAmount: d.gstAmount,
+      discount: 0, totalQty: d.totalItems, totalAmount: d.totalAmount, createdAt: d.createdAt, date: d.date || d.createdAt,
+      sellerType: d.senderType, branch: null, SalesRep: null, distributor: null
+    }));
+
+    const sales = [...rawSales, ...rawDispatches].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const totalSold = sales.reduce((sum, s) => sum + s.totalQty, 0);
     const revenue = sales.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -228,13 +253,16 @@ const getBranchReport = async (req, res) => {
   try {
     const { startDate, endDate, type } = req.query;
     let query = {};
+    let dispatchQuery = null;
 
     if (req.user.role === 'branch') {
         const branch = await Branch.findOne({ user: req.user._id });
         query = { branch: branch._id };
+        dispatchQuery = { senderBranch: branch._id };
     } else if (req.user.role === 'sales') {
         const salesRep = await SalesRep.findOne({ user: req.user._id });
         query = { SalesRep: salesRep._id };
+        dispatchQuery = { senderSalesRep: salesRep._id };
     } else if (req.user.role === 'distributor') {
         const distributor = await Distributor.findOne({ user: req.user._id });
         query = { distributor: distributor._id };
@@ -245,9 +273,28 @@ const getBranchReport = async (req, res) => {
         $gte: moment(startDate).startOf('day').toDate(), 
         $lte: moment(endDate).endOf('day').toDate() 
       };
+      if (dispatchQuery) {
+        dispatchQuery.date = query.date;
+      }
     }
 
-    const sales = await Sale.find(query).sort({ date: -1 });
+    const [salesRaw, dispatchesRaw] = await Promise.all([
+      Sale.find(query).sort({ date: -1 }),
+      dispatchQuery ? Dispatch.find(dispatchQuery).sort({ date: -1 }) : Promise.resolve([])
+    ]);
+
+    const rawSales = salesRaw.map(s => ({
+      _id: s._id, invoiceId: s.invoiceId, customerName: s.customerName, items: s.items,
+      totalQty: s.totalQty, totalAmount: s.totalAmount, date: s.date, paymentMethod: s.paymentMethod
+    }));
+
+    const rawDispatches = dispatchesRaw.map(d => ({
+      _id: d._id, invoiceId: d.invoiceNo, customerName: `Dispatch to ${d.receiverType}`, 
+      items: d.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, product: i.product })),
+      totalQty: d.totalItems, totalAmount: d.totalAmount, date: d.date || d.createdAt, paymentMethod: 'Transfer'
+    }));
+
+    const sales = [...rawSales, ...rawDispatches].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (type === 'sales') {
       const reportData = sales.map(s => ({
@@ -297,6 +344,7 @@ const getBranchReport = async (req, res) => {
 const getBranchDashboard = async (req, res) => {
   try {
     let query = {};
+    let dispatchQuery = null;
     let inventoryQuery = {};
     let inventoryModel = BranchInventory;
     let name = '';
@@ -305,12 +353,14 @@ const getBranchDashboard = async (req, res) => {
       const branch = await Branch.findOne({ user: req.user._id });
       if (!branch) return res.status(404).json({ message: 'Branch not found' });
       query = { branch: branch._id };
+      dispatchQuery = { senderBranch: branch._id };
       inventoryQuery = { branch: branch._id };
       name = branch.name;
     } else if (req.user.role === 'sales') {
       const salesRep = await SalesRep.findOne({ user: req.user._id });
       if (!salesRep) return res.status(404).json({ message: 'sales Rep not found' });
       query = { SalesRep: salesRep._id };
+      dispatchQuery = { senderSalesRep: salesRep._id };
       inventoryQuery = { SalesRep: salesRep._id };
       inventoryModel = SalesRepInventory;
       name = salesRep.name;
@@ -323,7 +373,23 @@ const getBranchDashboard = async (req, res) => {
       name = distributor.name;
     }
 
-    const sales = await Sale.find(query).sort({ date: -1 });
+    const [salesRaw, dispatchesRaw] = await Promise.all([
+      Sale.find(query).sort({ date: -1 }),
+      dispatchQuery ? Dispatch.find(dispatchQuery).sort({ date: -1 }) : Promise.resolve([])
+    ]);
+
+    const rawSales = salesRaw.map(s => ({
+      _id: s._id, invoiceId: s.invoiceId, customerName: s.customerName, customerPhone: s.customerPhone,
+      items: s.items, totalQty: s.totalQty, totalAmount: s.totalAmount, date: s.date
+    }));
+
+    const rawDispatches = dispatchesRaw.map(d => ({
+      _id: d._id, invoiceId: d.invoiceNo, customerName: `Dispatch to ${d.receiverType}`, customerPhone: '-',
+      items: d.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, product: i.product })),
+      totalQty: d.totalItems, totalAmount: d.totalAmount, date: d.date || d.createdAt
+    }));
+
+    const sales = [...rawSales, ...rawDispatches].sort((a, b) => new Date(b.date) - new Date(a.date));
     const today = moment().startOf('day');
     const todaySales = sales.filter(s => moment(s.date).isSameOrAfter(today));
     const todayRevenue = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
