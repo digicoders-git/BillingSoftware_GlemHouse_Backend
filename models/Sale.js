@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const SaleSchema = new mongoose.Schema({
   sellerType: {
     type: String,
-    enum: ['Branch', 'SalesRep', 'Distributor'],
+    enum: ['Branch', 'SalesRep', 'Distributor', 'Admin'],
     required: true,
     default: 'Branch'
   },
@@ -42,6 +42,7 @@ const SaleSchema = new mongoose.Schema({
       qty: Number,
       price: Number,
       total: Number,
+      expiryDate: String,
     }
   ],
   billingType: {

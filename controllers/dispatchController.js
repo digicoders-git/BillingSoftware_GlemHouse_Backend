@@ -109,17 +109,49 @@ const createDispatch = async (req, res) => {
 
     const createdDispatch = await dispatch.save();
     
-    // 5. Deduct from Sender's Stock and log it
+    // 5. Verify stock FIRST for all items before any database mutation
     for (const item of items) {
+      const qtyNum = Number(item.qty) || 0;
+      if (qtyNum <= 0) {
+        return res.status(400).json({ message: `Quantity for ${item.name || 'product'} must be greater than zero` });
+      }
+
+      if (senderType === 'Admin') {
+        const product = await Product.findById(item.product);
+        if (!product || product.stock < qtyNum) {
+          return res.status(400).json({ 
+            message: `Insufficient stock for ${item.name || (product ? product.name : 'product')} in Central Warehouse. Available: ${product ? product.stock : 0}` 
+          });
+        }
+      } else if (senderType === 'Branch') {
+        const branchStock = await BranchInventory.findOne({ branch: senderBranch, product: item.product });
+        if (!branchStock || branchStock.currentStock < qtyNum) {
+          return res.status(400).json({ 
+            message: `Insufficient stock for ${item.name || 'product'} at branch. Available: ${branchStock ? branchStock.currentStock : 0}` 
+          });
+        }
+      } else if (senderType === 'SalesRep') {
+        const SalesRepStock = await SalesRepInventory.findOne({ SalesRep: senderSalesRep, product: item.product });
+        if (!SalesRepStock || SalesRepStock.currentStock < qtyNum) {
+          return res.status(400).json({ 
+            message: `Insufficient stock for ${item.name || 'product'} in Sales Rep shelf stock. Available: ${SalesRepStock ? SalesRepStock.currentStock : 0}` 
+          });
+        }
+      }
+    }
+
+    // 6. Deduct from Sender's Stock and log it (Safe because validation passed for all items)
+    for (const item of items) {
+      const qtyNum = Number(item.qty);
       if (senderType === 'Admin') {
         // Deduct from Main Product stock for all dispatch types
-        await Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.qty } });
+        await Product.findByIdAndUpdate(item.product, { $inc: { stock: -qtyNum } });
 
         if (billingType !== 'Transfer') {
           await InventoryLog.create({
             product: item.product,
             type: 'Stock Out',
-            quantity: item.qty,
+            quantity: qtyNum,
             reason: `Admin Dispatched to ${receiverType}: ${invoiceNo} (${trackingCode})`,
             adjustedBy: req.user._id
           });
@@ -127,22 +159,16 @@ const createDispatch = async (req, res) => {
           await InventoryLog.create({
             product: item.product,
             type: 'Transfer Out',
-            quantity: item.qty,
+            quantity: qtyNum,
             reason: `Admin Transferred to ${receiverType}: ${invoiceNo} (${trackingCode})`,
             adjustedBy: req.user._id
           });
         }
       } else if (senderType === 'Branch') {
-        // VALIDATION: Check if Branch has enough stock
-        const branchStock = await BranchInventory.findOne({ branch: senderBranch, product: item.product });
-        if (!branchStock || branchStock.currentStock < item.qty) {
-           throw new Error(`Insufficient stock for ${item.name} at branch`);
-        }
-
         // Deduct from Branch stock
         await BranchInventory.findOneAndUpdate(
           { branch: senderBranch, product: item.product },
-          { $inc: { currentStock: -item.qty } }
+          { $inc: { currentStock: -qtyNum } }
         );
 
         await InventoryLog.create({
@@ -150,27 +176,22 @@ const createDispatch = async (req, res) => {
           SalesRep: receiverType === 'SalesRep' ? receiverSalesRep : null,
           product: item.product,
           type: 'Stock Out',
-          quantity: item.qty,
+          quantity: qtyNum,
           reason: `Branch Dispatched to ${receiverType}: ${invoiceNo} (${trackingCode})`,
           adjustedBy: req.user._id
         });
       } else if (senderType === 'SalesRep') {
          // Deduct from SalesRep stock
-         const SalesRepStock = await SalesRepInventory.findOne({ SalesRep: senderSalesRep, product: item.product });
-         if (!SalesRepStock || SalesRepStock.currentStock < item.qty) {
-            throw new Error(`Insufficient shelf stock for ${item.name}`);
-         }
-
          await SalesRepInventory.findOneAndUpdate(
            { SalesRep: senderSalesRep, product: item.product },
-           { $inc: { currentStock: -item.qty } }
+           { $inc: { currentStock: -qtyNum } }
          );
 
          await InventoryLog.create({
            SalesRep: senderSalesRep,
            product: item.product,
            type: 'Stock Out',
-           quantity: item.qty,
+           quantity: qtyNum,
            reason: `SalesRep Dispatched to ${receiverType}: ${invoiceNo} (${trackingCode})`,
            adjustedBy: req.user._id
          });

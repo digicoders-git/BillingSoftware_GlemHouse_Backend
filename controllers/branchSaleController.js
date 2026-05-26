@@ -7,6 +7,7 @@ const SalesRepInventory = require('../models/SalesRepInventory');
 const Distributor = require('../models/Distributor');
 const DistributorInventory = require('../models/DistributorInventory');
 const InventoryLog = require('../models/InventoryLog');
+const Product = require('../models/Product');
 const moment = require('moment');
 
 // @desc    Get sales history for current branch or SalesRep
@@ -141,7 +142,7 @@ const getBranchSales = async (req, res) => {
         time: moment(s.date).format('hh:mm A'),
         date: moment(s.date).format('YYYY-MM-DD'),
         sellerType: s.sellerType,
-        seller: s.sellerType === 'Branch' ? (s.branch?.name || 'Branch') : (s.sellerType === 'SalesRep' ? (s.SalesRep?.name || 'sales Rep') : (s.distributor?.name || 'Distributor'))
+        seller: s.sellerType === 'Branch' ? (s.branch?.name || 'Branch') : (s.sellerType === 'SalesRep' ? (s.SalesRep?.name || 'sales Rep') : (s.sellerType === 'Admin' ? 'Admin / Shop' : (s.distributor?.name || 'Distributor')))
       })),
       productWise,
       weeklyTrend,
@@ -200,24 +201,51 @@ const createSale = async (req, res) => {
       sellerId = distributor._id;
       inventoryModel = DistributorInventory;
       inventoryQuery = { distributor: distributor._id };
+    } else if (req.user.role === 'admin') {
+      sellerType = 'Admin';
+      inventoryModel = Product;
     }
 
     let totalQty = 0;
 
     // Verify stock
     for (const item of items) {
-      const inventory = await inventoryModel.findOne({ ...inventoryQuery, product: item.product });
-      if (!inventory || inventory.currentStock < item.qty) {
-        return res.status(400).json({ message: `Insufficient stock for ${item.name}` });
+      const qtyNum = Number(item.qty) || 0;
+      if (sellerType === 'Admin') {
+        const product = await Product.findById(item.product);
+        if (!product || product.stock < qtyNum) {
+          return res.status(400).json({ message: `Insufficient stock for ${item.name}` });
+        }
+      } else {
+        const inventory = await inventoryModel.findOne({ ...inventoryQuery, product: item.product });
+        if (!inventory || inventory.currentStock < qtyNum) {
+          return res.status(400).json({ message: `Insufficient stock for ${item.name}` });
+        }
       }
     }
 
     // Deduct stock
     for (const item of items) {
-      const inventory = await inventoryModel.findOne({ ...inventoryQuery, product: item.product });
-      inventory.currentStock -= item.qty;
-      await inventory.save();
-      totalQty += Number(item.qty);
+      const qtyNum = Number(item.qty) || 0;
+      if (sellerType === 'Admin') {
+        const product = await Product.findById(item.product);
+        product.stock -= qtyNum;
+        await product.save();
+
+        await InventoryLog.create({
+          product: item.product,
+          type: 'Stock Out',
+          quantity: qtyNum,
+          reason: `Admin Direct Billing`,
+          adjustedBy: req.user._id,
+          branch: null
+        });
+      } else {
+        const inventory = await inventoryModel.findOne({ ...inventoryQuery, product: item.product });
+        inventory.currentStock -= qtyNum;
+        await inventory.save();
+      }
+      totalQty += qtyNum;
     }
 
     const sale = await Sale.create({

@@ -28,6 +28,7 @@ const productSchema = new mongoose.Schema({
   },
   hsn: String,
   batch: String,
+  expiry: String,
 }, {
   timestamps: true,
 });

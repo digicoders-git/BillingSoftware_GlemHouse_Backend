@@ -68,6 +68,7 @@ const dispatchSchema = new mongoose.Schema({
       sku: String,
       hsn: String,
       batch: String,
+      expiryDate: String,
       qty: {
         type: Number,
         required: true,
