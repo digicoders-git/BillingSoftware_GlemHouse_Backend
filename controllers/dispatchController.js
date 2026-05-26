@@ -118,9 +118,12 @@ const createDispatch = async (req, res) => {
 
       if (senderType === 'Admin') {
         const product = await Product.findById(item.product);
-        if (!product || product.stock < qtyNum) {
+        if (!product) {
+          return res.status(404).json({ message: `Product ${item.name || 'product'} not found` });
+        }
+        if (billingType !== 'Transfer' && product.stock < qtyNum) {
           return res.status(400).json({ 
-            message: `Insufficient stock for ${item.name || (product ? product.name : 'product')} in Central Warehouse. Available: ${product ? product.stock : 0}` 
+            message: `Insufficient stock for ${product.name} in Central Warehouse. Available: ${product.stock}` 
           });
         }
       } else if (senderType === 'Branch') {
@@ -144,8 +147,10 @@ const createDispatch = async (req, res) => {
     for (const item of items) {
       const qtyNum = Number(item.qty);
       if (senderType === 'Admin') {
-        // Deduct from Main Product stock for all dispatch types
-        await Product.findByIdAndUpdate(item.product, { $inc: { stock: -qtyNum } });
+        // Deduct from Main Product stock for all dispatch types EXCEPT Transfer
+        if (billingType !== 'Transfer') {
+          await Product.findByIdAndUpdate(item.product, { $inc: { stock: -qtyNum } });
+        }
 
         if (billingType !== 'Transfer') {
           await InventoryLog.create({
