@@ -18,7 +18,9 @@ const getBranchInventory = async (req, res) => {
         ? (await Branch.findOne({ user: req.user._id }))?._id 
         : req.query.branchId;
         
-      if (!branchId) return res.status(404).json({ message: 'Branch not found' });
+      if (!branchId) {
+        return res.status(404).json({ message: 'Branch not found for current user' });
+      }
       
       const branch = await Branch.findById(branchId);
       name = branch?.name || 'Branch';
@@ -29,19 +31,21 @@ const getBranchInventory = async (req, res) => {
         ? (await SalesRep.findOne({ user: req.user._id }))?._id 
         : req.query.SalesRepId;
         
-      if (!SalesRepId) return res.status(404).json({ message: 'sales Rep not found' });
+      if (!SalesRepId) {
+        return res.status(404).json({ message: 'Sales Rep not found for current user' });
+      }
       
       const salesRep = await SalesRep.findById(SalesRepId);
-      name = salesRep?.name || 'sales Rep';
+      name = salesRep?.name || 'Sales Rep';
       inventory = await SalesRepInventory.find({ SalesRep: SalesRepId })
         .populate('product', 'name category price sku image minLevel hsn batch');
     } else {
-      return res.status(403).json({ message: 'Unauthorized role or missing parameters' });
+      return res.status(403).json({ message: `Unauthorized role: ${req.user.role} - missing required parameters` });
     }
 
     // Aggregate stats
-    const totalItems = inventory.reduce((sum, item) => sum + item.currentStock, 0);
-    const totalValue = inventory.reduce((sum, item) => sum + (item.currentStock * (item.product?.price || 0)), 0);
+    const totalItems = inventory.reduce((sum, item) => sum + (item.currentStock || 0), 0);
+    const totalValue = inventory.reduce((sum, item) => sum + ((item.currentStock || 0) * (item.product?.price || 0)), 0);
     const lowStockCount = inventory.filter(item => item.currentStock > 0 && item.currentStock <= (item.product?.minLevel || 5)).length;
     const outOfStockCount = inventory.filter(item => item.currentStock === 0).length;
 
@@ -51,13 +55,14 @@ const getBranchInventory = async (req, res) => {
         productID: item.product?._id,
         name: item.product?.name || 'Unknown',
         sku: item.product?.sku || 'N/A',
-        hsn: item.product?.hsn || '',
-        batch: item.product?.batch || '',
+        hsn: item.product?.hsn || 'N/A',
+        batch: item.product?.batch || 'N/A',
         category: item.product?.category || 'N/A',
         price: item.product?.price || 0,
-        stock: item.currentStock,
-        status: item.currentStock === 0 ? 'Out of Stock' : (item.currentStock <= (item.product?.minLevel || 5) ? 'Low Stock' : 'In Stock'),
-        value: item.currentStock * (item.product?.price || 0)
+        stock: item.currentStock || 0,
+        status: (item.currentStock || 0) === 0 ? 'Out of Stock' : ((item.currentStock || 0) <= (item.product?.minLevel || 5) ? 'Low Stock' : 'In Stock'),
+        value: (item.currentStock || 0) * (item.product?.price || 0),
+        image: item.product?.image
       })),
       stats: {
         totalItems,
@@ -68,6 +73,7 @@ const getBranchInventory = async (req, res) => {
       name
     });
   } catch (error) {
+    console.error('Error fetching branch inventory:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -102,17 +108,25 @@ const adjustStock = async (req, res) => {
     await inventoryItem.save();
 
     // Create Log
-    await InventoryLog.create({
-      branch: inventoryItem.branch || null,
+    const logData = {
       product: inventoryItem.product,
       type: action === 'add' ? 'Stock In' : 'Stock Out',
       quantity: Number(quantity),
       reason: req.body.reason || 'Manual Adjustment',
       adjustedBy: req.user._id
-    });
+    };
+    
+    if (inventoryItem.branch) {
+      logData.branch = inventoryItem.branch;
+    } else if (inventoryItem.SalesRep) {
+      logData.SalesRep = inventoryItem.SalesRep;
+    }
+    
+    await InventoryLog.create(logData);
 
     res.json({ message: 'Stock adjusted successfully', currentStock: inventoryItem.currentStock });
   } catch (error) {
+    console.error('Error adjusting stock:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -125,10 +139,14 @@ const getInventoryLogs = async (req, res) => {
     let query = {};
     if (req.user.role === 'branch') {
         const branch = await Branch.findOne({ user: req.user._id });
-        query = { branch: branch._id };
+        if (branch) {
+          query = { branch: branch._id };
+        }
     } else if (req.user.role === 'sales') {
-        // Handle sales rep logs if needed, for now filtering by adjustedBy
-        query = { adjustedBy: req.user._id };
+        const salesRep = await SalesRep.findOne({ user: req.user._id });
+        if (salesRep) {
+          query = { SalesRep: salesRep._id };
+        }
     }
 
     const logs = await InventoryLog.find(query)
@@ -138,6 +156,7 @@ const getInventoryLogs = async (req, res) => {
 
     res.json(logs);
   } catch (error) {
+    console.error('Error fetching inventory logs:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -159,6 +178,7 @@ const deleteBranchInventory = async (req, res) => {
     await inventoryItem.constructor.findByIdAndDelete(req.params.id);
     res.json({ message: 'Item removed from inventory' });
   } catch (error) {
+    console.error('Error deleting inventory item:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -169,4 +189,3 @@ module.exports = {
   getInventoryLogs,
   deleteBranchInventory
 };
-

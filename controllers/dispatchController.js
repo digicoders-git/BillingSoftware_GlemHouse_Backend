@@ -197,19 +197,21 @@ const createDispatch = async (req, res) => {
         });
       } else if (senderType === 'SalesRep') {
          // Deduct from SalesRep stock
-         await SalesRepInventory.findOneAndUpdate(
-           { SalesRep: senderSalesRep, product: item.product },
-           { $inc: { currentStock: -qtyNum } }
-         );
+         if (senderSalesRep) {
+           await SalesRepInventory.findOneAndUpdate(
+             { SalesRep: senderSalesRep, product: item.product },
+             { $inc: { currentStock: -qtyNum } }
+           );
 
-         await InventoryLog.create({
-           SalesRep: senderSalesRep,
-           product: item.product,
-           type: 'Stock Out',
-           quantity: qtyNum,
-           reason: `SalesRep Dispatched to ${receiverType}: ${invoiceNo} (${trackingCode})`,
-           adjustedBy: req.user._id
-         });
+           await InventoryLog.create({
+             SalesRep: senderSalesRep,
+             product: item.product,
+             type: 'Stock Out',
+             quantity: qtyNum,
+             reason: `SalesRep Dispatched to ${receiverType}: ${invoiceNo} (${trackingCode})`,
+             adjustedBy: req.user._id
+           });
+         }
       }
     }
 
@@ -359,36 +361,40 @@ const updateDispatchStatus = async (req, res) => {
           });
         }
       } else if (dispatch.receiverType === 'SalesRep') {
-        await SalesRepInventory.findOneAndUpdate(
-          { SalesRep: dispatch.receiverSalesRep, product: item.product },
-          { $inc: { currentStock: item.qty } },
-          { upsert: true, new: true }
-        );
+        if (dispatch.receiverSalesRep) {
+          await SalesRepInventory.findOneAndUpdate(
+            { SalesRep: dispatch.receiverSalesRep, product: item.product },
+            { $inc: { currentStock: item.qty } },
+            { upsert: true, new: true }
+          );
 
-        // Audit Log for SalesRep Stock Receipt
-        await InventoryLog.create({
-          SalesRep: dispatch.receiverSalesRep,
-          product: item.product,
-          type: 'Stock In',
-          quantity: item.qty,
-          reason: `SalesRep Received Stock: ${dispatch.invoiceNo} (${dispatch.trackingCode})`,
-          adjustedBy: req.user._id
-        });
+          // Audit Log for SalesRep Stock Receipt
+          await InventoryLog.create({
+            SalesRep: dispatch.receiverSalesRep,
+            product: item.product,
+            type: 'Stock In',
+            quantity: item.qty,
+            reason: `SalesRep Received Stock: ${dispatch.invoiceNo} (${dispatch.trackingCode})`,
+            adjustedBy: req.user._id
+          });
+        }
       } else if (dispatch.receiverType === 'Distributor') {
-        await DistributorInventory.findOneAndUpdate(
-          { distributor: dispatch.receiverDistributor, product: item.product },
-          { $inc: { currentStock: item.qty } },
-          { upsert: true, new: true }
-        );
+        if (dispatch.receiverDistributor) {
+          await DistributorInventory.findOneAndUpdate(
+            { distributor: dispatch.receiverDistributor, product: item.product },
+            { $inc: { currentStock: item.qty } },
+            { upsert: true, new: true }
+          );
 
-        await InventoryLog.create({
-          distributor: dispatch.receiverDistributor,
-          product: item.product,
-          type: 'Stock In',
-          quantity: item.qty,
-          reason: `Distributor Received Stock: ${dispatch.invoiceNo}`,
-          adjustedBy: req.user._id
-        });
+          await InventoryLog.create({
+            distributor: dispatch.receiverDistributor,
+            product: item.product,
+            type: 'Stock In',
+            quantity: item.qty,
+            reason: `Distributor Received Stock: ${dispatch.invoiceNo}`,
+            adjustedBy: req.user._id
+          });
+        }
       }
     }
   }

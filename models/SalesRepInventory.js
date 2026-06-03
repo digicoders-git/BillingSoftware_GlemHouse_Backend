@@ -24,8 +24,8 @@ const SalesRepInventorySchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Ensure a SalesRep can only have one entry per product
-SalesRepInventorySchema.index({ SalesRep: 1, product: 1 }, { unique: true });
+// Ensure a SalesRep can only have one entry per product (only when SalesRep is not null)
+SalesRepInventorySchema.index({ SalesRep: 1, product: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('SalesRepInventory', SalesRepInventorySchema);
 
