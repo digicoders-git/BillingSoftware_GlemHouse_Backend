@@ -43,6 +43,8 @@ const SaleSchema = new mongoose.Schema({
       price: Number,
       total: Number,
       expiryDate: String,
+      hsn: String,
+      batch: String,
     }
   ],
   billingType: {

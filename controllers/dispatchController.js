@@ -97,7 +97,17 @@ const createDispatch = async (req, res) => {
       date,
       method,
       reference: reference || invoiceNo,
-      items,
+      items: items.map(item => ({
+        product: item.product,
+        name: item.name,
+        sku: item.sku,
+        hsn: item.hsn || '',
+        batch: item.batch || '',
+        expiryDate: item.expiryDate || '',
+        qty: item.qty,
+        price: item.price,
+        total: item.total
+      })),
       totalItems,
       billingType,
       gstRate: gstRate || 0,
