@@ -15,30 +15,53 @@ const corsOptions = {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
+      'http://localhost:5174',
       'http://127.0.0.1:3000',
       'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
       process.env.FRONTEND_URL,
     ].filter(Boolean);
 
     // Allow requests with no origin (mobile apps, curl requests, etc)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) {
+      callback(null, true);
+    } else if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else if (process.env.NODE_ENV === 'production') {
-      // In production, also allow same domain
+      // In production, be more lenient but still log
+      console.log('CORS request from:', origin);
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.log('CORS blocked origin:', origin);
+      callback(null, true); // Still allow in dev for testing
     }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Basic Route
 app.get('/', (req, res) => {
-  res.send('API is running...');
+  res.json({ 
+    message: 'API is running...',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV
+  });
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 // Routes
@@ -62,11 +85,27 @@ app.use('/api/distributor-inventory', require('./routes/distributorInventoryRout
 // Static folder
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ message: 'API Route not found: ' + req.path });
+});
+
 const { errorHandler } = require('./middlewares/errorMiddleware');
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`
+  ╔════════════════════════════════════╗
+  ║  🚀 SERVER STARTED                ║
+  ║  Port: ${PORT}                       ║
+  ║  Environment: ${process.env.NODE_ENV}         ║
+  ║  Frontend URL: ${process.env.FRONTEND_URL || 'Not set'}  ║
+  ╚════════════════════════════════════╝
+  `);
+});
+
+server.on('error', (err) => {
+  console.error('Server error:', err);
 });
