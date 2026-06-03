@@ -321,89 +321,86 @@ const getDispatchById = async (req, res) => {
 // @route   PATCH /api/dispatches/:id/status
 // @access  Private
 const updateDispatchStatus = async (req, res) => {
-  const { status, paymentStatus } = req.body;
-  const dispatch = await Dispatch.findById(req.params.id);
+  try {
+    const { status, paymentStatus } = req.body;
+    const dispatch = await Dispatch.findById(req.params.id);
 
-  if (!dispatch) {
-    return res.status(404).json({ message: 'Dispatch record not found' });
-  }
-
-  if (dispatch.status === 'Received' && status === 'Received') {
-    return res.status(400).json({ message: 'Stock already received for this dispatch' });
-  }
-
-  if (status === 'Received') {
-    for (const item of dispatch.items) {
-      if (dispatch.receiverType === 'Branch') {
-        await BranchInventory.findOneAndUpdate(
-          { branch: dispatch.receiverBranch, product: item.product },
-          { $inc: { currentStock: item.qty } },
-          { upsert: true, new: true }
-        );
-
-        if (dispatch.billingType !== 'Transfer') {
-          await InventoryLog.create({
-            branch: dispatch.receiverBranch,
-            product: item.product,
-            type: 'Stock In',
-            quantity: item.qty,
-            reason: `Dispatch Received: ${dispatch.invoiceNo}`,
-            adjustedBy: req.user._id
-          });
-        } else {
-          await InventoryLog.create({
-            branch: dispatch.receiverBranch,
-            product: item.product,
-            type: 'Transfer In',
-            quantity: item.qty,
-            reason: `Transfer Received from Admin: ${dispatch.invoiceNo}`,
-            adjustedBy: req.user._id
-          });
-        }
-      } else if (dispatch.receiverType === 'SalesRep') {
-        if (dispatch.receiverSalesRep) {
-          await SalesRepInventory.findOneAndUpdate(
-            { SalesRep: dispatch.receiverSalesRep, product: item.product },
-            { $inc: { currentStock: item.qty } },
-            { upsert: true, new: true }
-          );
-
-          // Audit Log for SalesRep Stock Receipt
-          await InventoryLog.create({
-            SalesRep: dispatch.receiverSalesRep,
-            product: item.product,
-            type: 'Stock In',
-            quantity: item.qty,
-            reason: `SalesRep Received Stock: ${dispatch.invoiceNo} (${dispatch.trackingCode})`,
-            adjustedBy: req.user._id
-          });
-        }
-      } else if (dispatch.receiverType === 'Distributor') {
-        if (dispatch.receiverDistributor) {
-          await DistributorInventory.findOneAndUpdate(
-            { distributor: dispatch.receiverDistributor, product: item.product },
-            { $inc: { currentStock: item.qty } },
-            { upsert: true, new: true }
-          );
-
-          await InventoryLog.create({
-            distributor: dispatch.receiverDistributor,
-            product: item.product,
-            type: 'Stock In',
-            quantity: item.qty,
-            reason: `Distributor Received Stock: ${dispatch.invoiceNo}`,
-            adjustedBy: req.user._id
-          });
-        }
-      }
+    if (!dispatch) {
+      return res.status(404).json({ message: 'Dispatch record not found' });
     }
-  }
 
-  dispatch.status = status || dispatch.status;
-  dispatch.paymentStatus = paymentStatus || dispatch.paymentStatus;
-  
-  const updatedDispatch = await dispatch.save();
-  res.json(updatedDispatch);
+    if (dispatch.status === 'Received' && status === 'Received') {
+      return res.status(400).json({ message: 'Stock already received for this dispatch' });
+    }
+
+    if (status === 'Received') {
+      // Process each item concurrently to avoid timeout
+      const updatePromises = dispatch.items.map(async (item) => {
+        try {
+          if (dispatch.receiverType === 'Branch' && dispatch.receiverBranch) {
+            await BranchInventory.findOneAndUpdate(
+              { branch: dispatch.receiverBranch, product: item.product },
+              { $inc: { currentStock: item.qty } },
+              { upsert: true, new: true }
+            );
+
+            await InventoryLog.create({
+              branch: dispatch.receiverBranch,
+              product: item.product,
+              type: dispatch.billingType === 'Transfer' ? 'Transfer In' : 'Stock In',
+              quantity: item.qty,
+              reason: `Dispatch Received: ${dispatch.invoiceNo}`,
+              adjustedBy: req.user._id
+            });
+          } else if (dispatch.receiverType === 'SalesRep' && dispatch.receiverSalesRep) {
+            await SalesRepInventory.findOneAndUpdate(
+              { SalesRep: dispatch.receiverSalesRep, product: item.product },
+              { $inc: { currentStock: item.qty } },
+              { upsert: true, new: true }
+            );
+
+            await InventoryLog.create({
+              SalesRep: dispatch.receiverSalesRep,
+              product: item.product,
+              type: 'Stock In',
+              quantity: item.qty,
+              reason: `SalesRep Received Stock: ${dispatch.invoiceNo} (${dispatch.trackingCode})`,
+              adjustedBy: req.user._id
+            });
+          } else if (dispatch.receiverType === 'Distributor' && dispatch.receiverDistributor) {
+            await DistributorInventory.findOneAndUpdate(
+              { distributor: dispatch.receiverDistributor, product: item.product },
+              { $inc: { currentStock: item.qty } },
+              { upsert: true, new: true }
+            );
+
+            await InventoryLog.create({
+              distributor: dispatch.receiverDistributor,
+              product: item.product,
+              type: 'Stock In',
+              quantity: item.qty,
+              reason: `Distributor Received Stock: ${dispatch.invoiceNo}`,
+              adjustedBy: req.user._id
+            });
+          }
+        } catch (itemError) {
+          console.error(`Error processing item ${item.product}:`, itemError.message);
+        }
+      });
+
+      // Wait for all updates to complete
+      await Promise.all(updatePromises);
+    }
+
+    dispatch.status = status || dispatch.status;
+    dispatch.paymentStatus = paymentStatus || dispatch.paymentStatus;
+    
+    const updatedDispatch = await dispatch.save();
+    res.json(updatedDispatch);
+  } catch (error) {
+    console.error('Update dispatch status error:', error);
+    res.status(500).json({ message: error.message });
+  }
 };
 
 module.exports = {
