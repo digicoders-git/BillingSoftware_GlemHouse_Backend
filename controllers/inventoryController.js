@@ -17,15 +17,8 @@ const getInventorySummary = async (req, res) => {
 
     const totalValue = products.reduce((acc, p) => acc + (p.stock * p.price), 0);
 
-    // Calculate low stock based on GLOBAL stock (Warehouse + Branches)
-    let lowStockCount = 0;
-    for (const p of products) {
-      const productBranchStock = bi.filter(b => b.product.toString() === p._id.toString())
-                                   .reduce((sum, b) => sum + (b.currentStock || 0), 0);
-      if ((p.stock + productBranchStock) <= (p.minLevel || 5)) {
-        lowStockCount++;
-      }
-    }
+    // Calculate low stock based on warehouse stock (needs replenishment in Main Warehouse)
+    const lowStockCount = products.filter(p => p.stock <= (p.minLevel || 5)).length;
 
     // Get Stock In/Out totals for Admin (branch: null)
     const logs = await InventoryLog.find({ branch: null });

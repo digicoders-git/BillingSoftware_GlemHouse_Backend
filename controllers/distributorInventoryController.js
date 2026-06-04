@@ -24,7 +24,7 @@ const getDistributorInventory = async (req, res) => {
     }
 
     const inventory = await DistributorInventory.find({ distributor: distributorId })
-      .populate('product', 'name category price sku image minLevel');
+      .populate('product', 'name category price sku image minLevel hsn batch expiry');
 
     // Aggregate stats
     const totalItems = inventory.reduce((sum, item) => sum + item.currentStock, 0);
@@ -38,6 +38,9 @@ const getDistributorInventory = async (req, res) => {
         productID: item.product?._id,
         name: item.product?.name || 'Unknown',
         sku: item.product?.sku || 'N/A',
+        hsn: item.product?.hsn || 'N/A',
+        batch: item.product?.batch || 'N/A',
+        expiry: item.product?.expiry || '',
         category: item.product?.category || 'N/A',
         price: item.product?.price || 0,
         stock: item.currentStock,
