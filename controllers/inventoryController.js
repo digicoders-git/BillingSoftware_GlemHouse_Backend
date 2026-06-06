@@ -128,6 +128,8 @@ const getProductInventoryReport = async (req, res) => {
         _id: p._id,
         name: p.name,
         sku: p.sku,
+        packSize: p.packSize,
+        cartenSize: p.cartenSize,
         warehouseStock: p.stock,
         branchStock: branchStock,
         totalStock: p.stock + branchStock,

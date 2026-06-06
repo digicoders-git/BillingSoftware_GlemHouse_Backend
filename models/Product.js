@@ -7,7 +7,6 @@ const productSchema = new mongoose.Schema({
   },
   sku: {
     type: String,
-    required: true,
     unique: true,
   },
   price: {
@@ -29,6 +28,8 @@ const productSchema = new mongoose.Schema({
   hsn: String,
   batch: String,
   expiry: String,
+  packSize: String,
+  cartenSize: String,
 }, {
   timestamps: true,
 });

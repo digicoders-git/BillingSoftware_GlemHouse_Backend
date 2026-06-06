@@ -41,6 +41,7 @@ const SaleSchema = new mongoose.Schema({
       category: String,
       qty: Number,
       price: Number,
+      margin: Number,
       total: Number,
       expiryDate: String,
       hsn: String,

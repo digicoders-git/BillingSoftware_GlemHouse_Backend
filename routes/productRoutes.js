@@ -6,7 +6,8 @@ const {
   createProduct, 
   updateProduct, 
   deleteProduct, 
-  seedProducts 
+  seedProducts,
+  bulkCreateProducts 
 } = require('../controllers/productController');
 const { protect } = require('../middlewares/authMiddleware');
 
@@ -19,6 +20,7 @@ router.route('/:id')
   .put(protect, updateProduct)
   .delete(protect, deleteProduct);
 
+router.post('/bulk', protect, bulkCreateProducts);
 router.post('/seed', protect, seedProducts);
 
 module.exports = router;

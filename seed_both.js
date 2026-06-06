@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 
-dotenv.config();
+const uri = "mongodb+srv://digicodersdevelopment_db_user:KoJGvdKsGU9IQQvk@cluster0.9ssqshr.mongodb.net/GlemHouse_Billing?retryWrites=true&w=majority";
 
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -20,9 +19,7 @@ const productSchema = new mongoose.Schema({
 
 const Product = mongoose.models.Product || mongoose.model('Product', productSchema);
 
-const uri = "mongodb+srv://digicodersdevelopment_db_user:KoJGvdKsGU9IQQvk@cluster0.9ssqshr.mongodb.net/GlemHouse_Billing?retryWrites=true&w=majority";
-
-const products = [
+const sheet1 = [
   { name: "Floor Cleaner (Lemon)", packSize: "1 Lt", cartenSize: "1 Lt*12", price: 72.03, category: "Floor Cleaner" },
   { name: "Floor Cleaner (Pine)", packSize: "1 Lt", cartenSize: "1 Lt*12", price: 72.03, category: "Floor Cleaner" },
   { name: "Floor Cleaner (Lemon)", packSize: "5 Lt", cartenSize: "5 Lt*2", price: 304.24, category: "Floor Cleaner" },
@@ -59,27 +56,55 @@ const products = [
   { name: "Detergent Powder", packSize: "5 kg", cartenSize: "5 kg*5", price: 397.46, category: "Detergent" }
 ];
 
-async function seed() {
+const sheet2 = [
+  { name: "Floor Cleaner", packSize: "1 Lt", cartenSize: "1 Lt.*12", price: 72.03, category: "Floor Cleaner" },
+  { name: "Foor Cleaner (Pine)", packSize: "1 Lt", cartenSize: "1 Lt.*12", price: 72.03, category: "Floor Cleaner" },
+  { name: "Floor Cleaner", packSize: "5 Lt", cartenSize: "5 Lt.*2", price: 304.24, category: "Floor Cleaner" },
+  { name: "Floor Cleaner (Pine)", packSize: "5 Lt", cartenSize: "5 Lt.*2", price: 304.24, category: "Floor Cleaner" },
+  { name: "Dish Wash Gel", packSize: "250 ml", cartenSize: "250 ml*36", price: 49.15, category: "Dish Wash" },
+  { name: "Dish Wash Gel", packSize: "500 ml", cartenSize: "500 ml*24", price: 105.93, category: "Dish Wash" },
+  { name: "Dish Wash Gel", packSize: "5 Lt", cartenSize: "5 Lt.*2", price: 576.27, category: "Dish Wash" },
+  { name: "Toilet Cleaner", packSize: "250 ml", cartenSize: "250 ml*36", price: 40.68, category: "Toilet Cleaner" },
+  { name: "Toilet Cleaner", packSize: "500 ml", cartenSize: "500 ml*24", price: 83.90, category: "Toilet Cleaner" },
+  { name: "Toilet Cleaner", packSize: "1 Lt", cartenSize: "1 Lt.*12", price: 168.64, category: "Toilet Cleaner" },
+  { name: "Toilet Cleaner", packSize: "5 Lt", cartenSize: "5 Lt.*2", price: 550.85, category: "Toilet Cleaner" },
+  { name: "Hand Wash", packSize: "250 ml", cartenSize: "250 ml*36", price: 72.03, category: "Hand Wash" },
+  { name: "Hand Wash (Aqua)", packSize: "250 ml", cartenSize: "250 ml*36", price: 72.03, category: "Hand Wash" },
+  { name: "Hand Wash", packSize: "500 ml", cartenSize: "500 ml*24", price: 126.27, category: "Hand Wash" },
+  { name: "Hand Wash (Aqua)", packSize: "500 ml", cartenSize: "500 ml*24", price: 126.27, category: "Hand Wash" },
+  { name: "Hand Wash", packSize: "5 Lt", cartenSize: "5 Lt.*2", price: 584.75, category: "Hand Wash" },
+  { name: "Hand Wash (Aqua)", packSize: "5 Lt", cartenSize: "5 Lt.*2", price: 584.75, category: "Hand Wash" },
+  { name: "Green Consuntrate", packSize: "250 ml", cartenSize: "250 ml*36", price: 93.22, category: "Consuntrate" },
+  { name: "Green Consuntrate", packSize: "500 ml", cartenSize: "500 ml*24", price: 177.97, category: "Consuntrate" },
+  { name: "Green Consuntrate", packSize: "1 Lt", cartenSize: "1 Lt.*12", price: 313.56, category: "Consuntrate" },
+  { name: "Green Consuntrate", packSize: "5 Lt", cartenSize: "5Lt.*2", price: 1228.81, category: "Consuntrate" },
+  { name: "White Consuntrate", packSize: "250 ml", cartenSize: "250 ml*36", price: 122.88, category: "Consuntrate" },
+  { name: "White Consuntrate", packSize: "500 ml", cartenSize: "500 ml*24", price: 224.58, category: "Consuntrate" },
+  { name: "White Consuntrate", packSize: "1 Lt", cartenSize: "1 Lt.*12", price: 413.25, category: "Consuntrate" }
+];
+
+async function seedBoth() {
   try {
     await mongoose.connect(uri);
     console.log("Connected to MongoDB");
 
-    let count = 0;
-    for (let i = 0; i < products.length; i++) {
-      const p = products[i];
-      // Check if exact product already exists to prevent duplication
-      const exists = await Product.findOne({ name: p.name, packSize: p.packSize });
-      if (!exists) {
-        p.sku = `PRD-${Date.now()}-${Math.floor(Math.random()*1000)}`;
-        await Product.create(p);
-        console.log(`Inserted ${p.name} - ${p.packSize}`);
-        count++;
-      } else {
-        console.log(`Skipped ${p.name} - ${p.packSize} (Already exists)`);
-      }
+    // Clear existing products to avoid duplicates
+    await Product.deleteMany({});
+    console.log("Cleared existing products");
+
+    const allProducts = [...sheet1, ...sheet2];
+    let inserted = 0;
+
+    for (let i = 0; i < allProducts.length; i++) {
+      const p = allProducts[i];
+      // Generate a unique SKU using index to ensure uniqueness even if names are similar
+      p.sku = `PRD-${Date.now()}-${i}-${Math.floor(Math.random()*1000)}`;
+      await Product.create(p);
+      console.log(`Inserted ${p.name} - ${p.packSize}`);
+      inserted++;
     }
 
-    console.log(`Seed complete! Inserted ${count} new products.`);
+    console.log(`Seed complete! Successfully inserted ${inserted} products (34 from sheet 1 + 24 from sheet 2).`);
     process.exit(0);
   } catch (err) {
     console.error(err);
@@ -87,4 +112,4 @@ async function seed() {
   }
 }
 
-seed();
+seedBoth();

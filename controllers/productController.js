@@ -32,15 +32,18 @@ const getProductById = async (req, res) => {
 // @route   POST /api/products
 // @access  Private/Admin
 const createProduct = async (req, res) => {
-  const { name, sku, price, stock, category, description, image, minLevel, hsn, batch } = req.body;
+  const { name, sku, price, stock, category, description, image, minLevel, hsn, batch, packSize, cartenSize } = req.body;
   const Branch = require('../models/Branch');
   const BranchInventory = require('../models/BranchInventory');
 
   try {
-    const productExists = await Product.findOne({ sku });
+    let finalSku = sku || `PRD-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+    if (sku) {
+      const productExists = await Product.findOne({ sku });
 
-    if (productExists) {
-      return res.status(400).json({ message: 'Product with this SKU already exists' });
+      if (productExists) {
+        return res.status(400).json({ message: 'Product with this SKU already exists' });
+      }
     }
 
     // Convert to numbers to avoid string issues
@@ -50,7 +53,7 @@ const createProduct = async (req, res) => {
 
     const product = await Product.create({
       name,
-      sku,
+      sku: finalSku,
       price: numericPrice,
       stock: req.user.role === 'admin' ? numericStock : 0, // Branch products don't go to Main Warehouse
       category,
@@ -59,6 +62,8 @@ const createProduct = async (req, res) => {
       minLevel: numericMinLevel,
       hsn,
       batch,
+      packSize,
+      cartenSize,
     });
 
     // If the user is a branch manager, link this product to their branch inventory
@@ -83,7 +88,7 @@ const createProduct = async (req, res) => {
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 const updateProduct = async (req, res) => {
-  const { name, price, stock, category, description, image, minLevel, hsn, batch } = req.body;
+  const { name, price, stock, category, description, image, minLevel, hsn, batch, packSize, cartenSize } = req.body;
 
   try {
     const product = await Product.findById(req.params.id);
@@ -98,6 +103,8 @@ const updateProduct = async (req, res) => {
       product.minLevel = minLevel !== undefined ? minLevel : product.minLevel;
       product.hsn = hsn !== undefined ? hsn : product.hsn;
       product.batch = batch !== undefined ? batch : product.batch;
+      product.packSize = packSize !== undefined ? packSize : product.packSize;
+      product.cartenSize = cartenSize !== undefined ? cartenSize : product.cartenSize;
 
       const updatedProduct = await product.save();
       res.json(updatedProduct);
@@ -146,6 +153,73 @@ const seedProducts = async (req, res) => {
   res.json(createdProducts);
 };
 
+// @desc    Bulk Create products
+// @route   POST /api/products/bulk
+// @access  Private/Admin
+const bulkCreateProducts = async (req, res) => {
+  const { products } = req.body;
+  
+  if (!products || !Array.isArray(products) || products.length === 0) {
+    return res.status(400).json({ message: 'No valid products provided' });
+  }
+
+  try {
+    const Branch = require('../models/Branch');
+    const BranchInventory = require('../models/BranchInventory');
+
+    let createdCount = 0;
+    const errors = [];
+
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      if (!p.name) continue;
+
+      let finalSku = p.sku || `PRD-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+      if (p.sku) {
+        const productExists = await Product.findOne({ sku: p.sku });
+        if (productExists) {
+          errors.push(`SKU ${p.sku} already exists. Skipped.`);
+          continue;
+        }
+      }
+
+      const numericStock = Number(p.stock) || 0;
+      const numericPrice = Number(p.price) || 0;
+      const numericMinLevel = Number(p.minLevel) || 5;
+
+      const product = await Product.create({
+        name: p.name,
+        sku: finalSku,
+        price: numericPrice,
+        stock: req.user.role === 'admin' ? numericStock : 0,
+        category: p.category,
+        description: p.description,
+        minLevel: numericMinLevel,
+        hsn: p.hsn,
+        batch: p.batch,
+        packSize: p.packSize,
+        cartenSize: p.cartenSize,
+      });
+
+      if (req.user && req.user.role === 'branch') {
+        const branch = await Branch.findOne({ user: req.user._id });
+        if (branch) {
+          await BranchInventory.create({
+            branch: branch._id,
+            product: product._id,
+            currentStock: numericStock,
+          });
+        }
+      }
+      createdCount++;
+    }
+
+    res.status(201).json({ message: `Successfully imported ${createdCount} products.`, errors });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getProducts,
   getProductById,
@@ -153,5 +227,6 @@ module.exports = {
   updateProduct,
   deleteProduct,
   seedProducts,
+  bulkCreateProducts,
 };
 
