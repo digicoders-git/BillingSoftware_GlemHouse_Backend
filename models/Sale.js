@@ -46,6 +46,7 @@ const SaleSchema = new mongoose.Schema({
       expiryDate: String,
       hsn: String,
       batch: String,
+      freeItem: String,
     }
   ],
   billingType: {
