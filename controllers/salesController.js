@@ -48,12 +48,35 @@ const getSalesRepById = async (req, res) => {
 // @route   POST /api/sales
 // @access  Private/Admin
 const createSalesRep = async (req, res) => {
-  const { salesId, name, location, contact, email, password } = req.body;
+  const { name, location, address, contact, email, password, agreementUrl, employeeName, employeeContact } = req.body;
 
-  const salesRepExists = await SalesRep.findOne({ $or: [{ salesId }, { email }] });
+  // Generate unique salesId (e.g., SL-001)
+  const lastSalesRep = await SalesRep.findOne({}, {}, { sort: { 'createdAt': -1 } });
+  let nextIdNumber = 1;
+  if (lastSalesRep && lastSalesRep.salesId && lastSalesRep.salesId.startsWith('SL-')) {
+    const lastIdString = lastSalesRep.salesId.split('-')[1];
+    const lastIdNumber = parseInt(lastIdString, 10);
+    if (!isNaN(lastIdNumber)) {
+      nextIdNumber = lastIdNumber + 1;
+    }
+  }
+  const salesId = `SL-${nextIdNumber.toString().padStart(3, '0')}`;
+
+  // Generate unique employeeId (e.g., EMP-S-001)
+  let nextEmpIdNumber = 1;
+  if (lastSalesRep && lastSalesRep.employeeId && lastSalesRep.employeeId.startsWith('EMP-S-')) {
+    const lastEmpIdString = lastSalesRep.employeeId.split('-')[2];
+    const lastEmpIdNum = parseInt(lastEmpIdString, 10);
+    if (!isNaN(lastEmpIdNum)) {
+      nextEmpIdNumber = lastEmpIdNum + 1;
+    }
+  }
+  const employeeId = `EMP-S-${nextEmpIdNumber.toString().padStart(3, '0')}`;
+
+  const salesRepExists = await SalesRep.findOne({ email });
 
   if (salesRepExists) {
-    return res.status(400).json({ message: 'sales ID or Email already exists' });
+    return res.status(400).json({ message: 'Email already exists' });
   }
 
   // Create User first
@@ -72,10 +95,15 @@ const createSalesRep = async (req, res) => {
       salesId,
       name,
       location,
+      address,
       contact,
+      employeeName,
+      employeeId,
+      employeeContact,
       email,
       password: password,
       user: user._id,
+      agreementUrl,
     });
 
     res.status(201).json(sales);
@@ -93,7 +121,10 @@ const updateSalesRep = async (req, res) => {
   if (sales) {
     sales.name = req.body.name || sales.name;
     sales.location = req.body.location || sales.location;
+    sales.address = req.body.address || sales.address;
     sales.contact = req.body.contact || sales.contact;
+    sales.employeeName = req.body.employeeName || sales.employeeName;
+    sales.employeeContact = req.body.employeeContact || sales.employeeContact;
     sales.status = req.body.status || sales.status;
     
     if (req.body.password) {

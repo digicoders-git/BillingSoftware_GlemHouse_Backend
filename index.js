@@ -81,6 +81,7 @@ app.use('/api/inventory', require('./routes/inventoryRoutes'));
 app.use('/api/sales', require('./routes/salesRoutes'));
 app.use('/api/distributors', require('./routes/distributorRoutes'));
 app.use('/api/distributor-inventory', require('./routes/distributorInventoryRoutes'));
+app.use('/api/returns', require('./routes/returnRoutes'));
 
 // Static folder
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

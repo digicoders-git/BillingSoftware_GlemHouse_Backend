@@ -18,10 +18,25 @@ const distributorSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  employeeName: {
+    type: String,
+    required: true,
+  },
+  employeeId: {
+    type: String,
+    required: true,
+  },
+  employeeContact: {
+    type: String,
+    required: true,
+  },
   status: {
     type: String,
     enum: ['Active', 'Inactive', 'Pending'],
     default: 'Active',
+  },
+  agreementUrl: {
+    type: String,
   },
   email: {
     type: String,

@@ -23,15 +23,15 @@ const storage = multer.diskStorage({
 });
 
 function checkFileType(file, cb) {
-  // Added more formats like webp, svg, etc.
-  const filetypes = /jpg|jpeg|png|webp|svg|gif/;
+  // Added more formats like webp, svg, pdf, doc, docx etc.
+  const filetypes = /jpg|jpeg|png|webp|svg|gif|pdf|doc|docx/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
+  const mimetype = filetypes.test(file.mimetype) || file.mimetype === 'application/pdf' || file.mimetype.includes('msword') || file.mimetype.includes('wordprocessingml');
 
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb('Images only! (Supported: JPG, PNG, WEBP, SVG, GIF)');
+    cb('Images and Documents only! (Supported: JPG, PNG, WEBP, SVG, GIF, PDF, DOC, DOCX)');
   }
 }
 

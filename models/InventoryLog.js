@@ -21,7 +21,7 @@ const inventoryLogSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['Stock In', 'Stock Out', 'Transfer In', 'Transfer Out'],
+    enum: ['Stock In', 'Stock Out', 'Transfer In', 'Transfer Out', 'Return In', 'Return Out'],
     required: true,
   },
   quantity: {

@@ -14,7 +14,23 @@ const SalesRepSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  address: {
+    type: String,
+    required: true,
+  },
   contact: {
+    type: String,
+    required: true,
+  },
+  employeeName: {
+    type: String,
+    required: true,
+  },
+  employeeId: {
+    type: String,
+    required: true,
+  },
+  employeeContact: {
     type: String,
     required: true,
   },
@@ -22,6 +38,9 @@ const SalesRepSchema = new mongoose.Schema({
     type: String,
     enum: ['Active', 'Inactive', 'Pending'],
     default: 'Active',
+  },
+  agreementUrl: {
+    type: String,
   },
   email: {
     type: String,
