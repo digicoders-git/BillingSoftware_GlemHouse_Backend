@@ -50,6 +50,7 @@ const getBranchSales = async (req, res) => {
       _id: s._id, invoiceId: s.invoiceId, customerName: s.customerName, customerPhone: s.customerPhone,
       items: s.items, billingType: s.billingType, gstRate: s.gstRate, taxableAmount: s.taxableAmount,
       gstAmount: s.gstAmount, discount: s.discount, totalQty: s.totalQty, totalAmount: s.totalAmount,
+      customerGstNumber: s.customerGstNumber, sellerGstNumber: s.sellerGstNumber,
       createdAt: s.createdAt, date: s.date, sellerType: s.sellerType, branch: s.branch, SalesRep: s.SalesRep, distributor: s.distributor
     }));
 
@@ -131,6 +132,8 @@ const getBranchSales = async (req, res) => {
         customerPhone: s.customerPhone,
         products: s.items.map(i => i.name).join(', '),
         items: s.items,
+        customerGstNumber: s.customerGstNumber,
+        sellerGstNumber: s.sellerGstNumber,
         billingType: s.billingType,
         gstRate: s.gstRate,
         taxableAmount: s.taxableAmount,
@@ -174,7 +177,9 @@ const createSale = async (req, res) => {
       gstAmount,
       discount,
       totalAmount,
-      notes
+      notes,
+      customerGstNumber,
+      sellerGstNumber
     } = req.body;
 
     let sellerType = 'Branch';
@@ -256,6 +261,8 @@ const createSale = async (req, res) => {
       invoiceId: `INV-${Date.now().toString().slice(-6)}`,
       customerName,
       customerPhone,
+      customerGstNumber,
+      sellerGstNumber,
       items,
       billingType: billingType || 'Without GST',
       gstRate: gstRate || 0,

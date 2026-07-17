@@ -31,6 +31,12 @@ const SaleSchema = new mongoose.Schema({
   customerPhone: {
     type: String,
   },
+  customerGstNumber: {
+    type: String,
+  },
+  sellerGstNumber: {
+    type: String,
+  },
   items: [
     {
       product: {
